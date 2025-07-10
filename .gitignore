@@ -1,0 +1,4 @@
+*.img
+setup.log
+build_template.log
+post-commit.log
