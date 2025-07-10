@@ -1,0 +1,16 @@
+name: Disk-image CI
+
+on:
+  push:
+    branches: [ main ]
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build template disk image
+        run: bash src/docker/run_in_docker.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: template-img
+          path: template.img

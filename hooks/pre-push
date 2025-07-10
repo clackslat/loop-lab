@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+echo "[hook] running disk-image build before push…"
+bash src/docker/run_in_docker.sh
+
+echo "[hook] pre-push hook succeeded – pushing allowed."
