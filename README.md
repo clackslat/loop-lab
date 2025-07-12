@@ -14,7 +14,7 @@ graph TD
         B -->|Step 2| C[Populated OS image]
     end
     C -->|bind-mount| D[targetcli container]
-    subgraph Runtime (Dell server)
+    subgraph Runtime
         D -->|LUN over TCP 3260| E[Dell BIOS iSCSI]
         E --> F[UEFI loads BOOTX64.EFI (from ESP)]
         F --> G[GRUB loads vmlinuz, initrd]
