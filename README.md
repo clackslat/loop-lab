@@ -6,7 +6,7 @@ git config core.hooksPath hooks
 
 # run the image build in Docker manually
 bash src/docker/run_in_docker.sh
-
+```
 ```mermaid
 graph TD
     subgraph Build-time (your laptop/CI)
@@ -20,3 +20,4 @@ graph TD
         F --> G[GRUB loads vmlinuz, initrd]
         G --> H[Linux boots, root=/dev/sdX2 on same LUN]
     end
+```
