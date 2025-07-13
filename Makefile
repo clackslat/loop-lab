@@ -1,26 +1,28 @@
-# loop-lab/Makefile  – no fanciness, just explicit options
-ARCH ?= x64                  # x64 or aarch64
-IMAGE := loop-lab-disktools  # built by src/docker/Dockerfile
-DEV_MNT := -v /dev:/dev      # ← always give container the host /dev
+# loop-lab/Makefile  — minimal, explicit, multi-arch
+
+ARCH  ?= x64                   # x64  |  aarch64
+IMAGE := loop-lab-disktools    # built by src/docker/Dockerfile
+DEV   := -v /dev:/dev          # give container the host /dev
+WORK  := -v $(PWD):/work       # bind repo root into /work inside the container
 
 .PHONY: build esp rootfs all clean
 
-build:                       ## Step 0/1 – create & partition image
-	docker run --rm -it --privileged $(DEV_MNT) \
-	  -v $(PWD):/work $(IMAGE) \
+# Step 0/1 – create template.img + partitions
+build:
+	docker run --rm -it --privileged $(DEV) $(WORK) $(IMAGE) \
 	  /work/src/docker/build_image.sh
 
-esp: build                   ## Step 2-A – prepare ESP (UEFI Shell default)
-	docker run --rm -it --privileged $(DEV_MNT) \
-	  -v $(PWD):/work $(IMAGE) \
-	  /work/scripts/prep_esp.sh $(ARCH)
+# Step 2-A – populate the ESP with the UEFI Shell default
+esp: build
+	docker run --rm -it --privileged $(DEV) $(WORK) $(IMAGE) \
+	  /work/src/docker/prep_esp.sh $(ARCH)
 
-rootfs: esp                  ## Step 2-B – unpack Ubuntu + install GRUB
-	docker run --rm -it --privileged $(DEV_MNT) \
-	  -v $(PWD):/work $(IMAGE) \
-	  /work/scripts/import_rootfs.sh $(ARCH)
+# Step 2-B – unpack a minimal Ubuntu rootfs and install GRUB/shim
+rootfs: esp
+	docker run --rm -it --privileged $(DEV) $(WORK) $(IMAGE) \
+	  /work/src/docker/import_rootfs.sh $(ARCH)
 
-all: rootfs                  ## Full workflow
+all: rootfs                    # full chain
 
 clean:
 	rm -f template.img

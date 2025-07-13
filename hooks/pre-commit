@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # hooks/pre-commit  – cleanup + build in Docker
-set -euo pipefail
+export PS4='[\D{%H:%M:%S}] ${BASH_SOURCE##*/}:${LINENO}> '
+set -xeuo pipefail
 
 echo "[hook] pre-commit – detaching stale loop devices …"
 if command -v docker >/dev/null 2>&1; then

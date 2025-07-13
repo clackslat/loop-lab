@@ -2,7 +2,8 @@
 # Build a blank template disk with EFI + root partitions.
 # Runs fine on bare Linux *or* inside the docker/disk-tools image.
 
-set -Eeuo pipefail
+export PS4='[\D{%H:%M:%S}] ${BASH_SOURCE##*/}:${LINENO}> '
+set -xEeuo pipefail
 
 # ─── user-tweakable vars ─────────────────────────────────────────────
 IMG_PATH="${IMG_PATH:-template.img}"

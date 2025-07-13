@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-set -euo pipefail
+export PS4='[\D{%H:%M:%S}] ${BASH_SOURCE##*/}:${LINENO}> '
+set -xeuo pipefail
 
 echo "[hook] running disk-image build before push…"
 bash src/docker/run_in_docker.sh
