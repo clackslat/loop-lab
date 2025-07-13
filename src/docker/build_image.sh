@@ -2,21 +2,18 @@
 # Build a blank template disk with EFI + root partitions.
 # Runs fine on bare Linux *or* inside the docker/disk-tools image.
 
-export PS4='[\D{%H:%M:%S}] ${BASH_SOURCE##*/}:${LINENO}> '
-set -xEeuo pipefail
+# 1) fail fast
+set -euo pipefail          # -e = exit on error, -u = exit on unset var, -o pipefail
+
+# 2) readable trace
+export PS4='[${BASH_SOURCE##*/}:${LINENO}] '
+set -x                     # -x = trace each command with the PS4 prefix
 
 # ─── user-tweakable vars ─────────────────────────────────────────────
 IMG_PATH="${IMG_PATH:-template.img}"
 IMG_SIZE="${IMG_SIZE:-10G}"
 # ─────────────────────────────────────────────────────────────────────
 
-# ---------- logging ----------
-if command -v ts >/dev/null 2>&1; then
-  exec > >(ts '[%H:%M:%S]' | tee -a build_template.log) 2>&1
-else
-  exec > >(tee -a build_template.log) 2>&1
-fi
-export PS4='[${LINENO}] '; set -x
 
 truncate -s "$IMG_SIZE" "$IMG_PATH"
 

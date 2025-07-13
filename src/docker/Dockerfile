@@ -7,4 +7,5 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 ARG IMG_SIZE IMG_PATH
 COPY ../build_image.sh /usr/local/bin/
+COPY ../prep_esp.sh   /usr/local/bin/
 ENTRYPOINT ["/usr/local/bin/build_image.sh"]
