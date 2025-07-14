@@ -12,9 +12,11 @@ IMG=/work/template.img                       # provided by earlier steps
 if [[ $ARCH == aarch64 ]]; then
     TAR=/rootfs-cache/arm64/rootfs.tar.xz
     GRUB_PKG=grub-efi-arm64
+    TARGET=arm64-efi
 else
     TAR=/rootfs-cache/amd64/rootfs.tar.xz
     GRUB_PKG=grub-efi-amd64
+    TARGET=x86_64-efi
 fi
 KERNEL_PKG=linux-image-generic
 
@@ -43,7 +45,7 @@ chroot /mnt bash -c "
   apt-get update -y
   DEBIAN_FRONTEND=noninteractive \
     apt-get install -y $GRUB_PKG shim-signed $KERNEL_PKG
-  grub-install --target=${ARCH/x64/x86_64}-efi \
+  grub-install --target="$TARGET" \
                --efi-directory=/boot/efi \
                --bootloader-id=UBUNTU
   update-grub
