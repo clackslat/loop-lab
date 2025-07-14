@@ -45,7 +45,7 @@ chroot /mnt bash -euo pipefail -c "
       --efi-directory=/boot/efi \
       --bootloader-id=UBUNTU \
       --no-nvram \
-      --removable          # fallback BOOT*.EFI, avoids UEFI shell
+      --removable
 
   update-grub
 "
