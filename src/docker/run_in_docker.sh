@@ -12,6 +12,7 @@ docker build -t "$IMAGE" -f src/docker/Dockerfile src/docker
 docker run --rm --privileged \
   -v /dev:/dev \
   -v "$(pwd)":/work -w /work \
+  -e ARCH="$ARCH" \
   --entrypoint /work/src/docker/build_image.sh "$IMAGE"
 
 # Step 2-A – prepare ESP (UEFI Shell default)

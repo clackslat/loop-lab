@@ -5,7 +5,7 @@ source /usr/local/lib/strict_trace.sh
 source /usr/local/lib/arch_info.sh
 
 ARCH=${1:?need arch x64|aarch64}
-IMG=${IMG_PATH:-/work/template.img}
+IMG=/work/template-${ARCH}.img
 UEFI_ID=$( [[ $ARCH == x64 ]] && echo X64 || echo AA64 )
 SHELL_EFI="${EFI_SHELL_PATH[$ARCH]}"
 

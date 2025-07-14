@@ -7,8 +7,7 @@ source /usr/local/lib/strict_trace.sh    # PS4 + set -euo pipefail
 source /usr/local/lib/arch_info.sh       # gives ROOTFS_TAR, GRUB_PKG, GRUB_TARGET …
 
 ARCH=${1:-${ARCH:-x64}}                  # allow CLI or env override
-IMG=/work/template.img                   # produced by build_image.sh
-
+IMG=/work/template-${ARCH}.img
 # ── look up everything in a single place ------------------------------------
 TAR=${ROOTFS_TAR[$ARCH]}
 GRUB=${GRUB_PKG[$ARCH]}

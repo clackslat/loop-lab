@@ -2,9 +2,9 @@
 # Build a blank template disk with EFI + root partitions.
 # Runs fine on bare Linux *or* inside the docker/disk-tools image.
 source /usr/local/lib/strict_trace.sh
-
+ARCH=${ARCH:-x64}     
 # ─── user-tweakable vars ─────────────────────────────────────────────
-IMG_PATH="${IMG_PATH:-template.img}"
+IMG_PATH=template-${ARCH}.img
 IMG_SIZE="${IMG_SIZE:-10G}"
 # ─────────────────────────────────────────────────────────────────────
 
