@@ -1,13 +1,7 @@
 #!/usr/bin/env bash
 # Build a blank template disk with EFI + root partitions.
 # Runs fine on bare Linux *or* inside the docker/disk-tools image.
-
-# 1) fail fast
-set -euo pipefail          # -e = exit on error, -u = exit on unset var, -o pipefail
-
-# 2) readable trace
-export PS4='[${BASH_SOURCE##*/}:${LINENO}] '
-set -x                     # -x = trace each command with the PS4 prefix
+source /usr/local/lib/strict_trace.sh
 
 # ─── user-tweakable vars ─────────────────────────────────────────────
 IMG_PATH="${IMG_PATH:-template.img}"

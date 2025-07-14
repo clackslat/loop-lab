@@ -1,13 +1,7 @@
 #!/usr/bin/env bash
 # Step-2A: prepare the EFI System Partition.
 # Usage:   prep_esp.sh <arch>      # arch = x64  |  aarch64
-
-# 1) fail fast
-set -euo pipefail          # -e = exit on error, -u = exit on unset var, -o pipefail
-
-# 2) readable trace
-export PS4='[${BASH_SOURCE##*/}:${LINENO}] '
-set -x                     # -x = trace each command with the PS4 prefix
+source /usr/local/lib/strict_trace.sh
 
 ARCH=${1:?need arch x64|aarch64}
 IMG=${IMG_PATH:-/work/template.img}
