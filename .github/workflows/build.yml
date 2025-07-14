@@ -1,16 +1,61 @@
-name: Disk-image CI
+name: Build Noble templates
 
 on:
   push:
     branches: [ main ]
+
 jobs:
   build:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+
     steps:
+      #------------------------------------------------------------------
+      # 1  Checkout repo
+      #------------------------------------------------------------------
       - uses: actions/checkout@v4
-      - name: Build template disk image
-        run: bash src/docker/run_in_docker.sh
-      - uses: actions/upload-artifact@v4
+
+      #------------------------------------------------------------------
+      # 2  Build the disk-tools image (contains root-fs tarballs + arch_info)
+      #------------------------------------------------------------------
+      - name: Build disk-tools image
+        run: |
+          docker build --no-cache \
+            -t loop-lab-disktools \
+            -f src/docker/Dockerfile src/docker
+
+      #------------------------------------------------------------------
+      # 3  Generate templates for every architecture in arch_info.sh
+      #------------------------------------------------------------------
+      - name: Build templates for x64 & aarch64
+        run: |
+          source src/docker/arch_info.sh    # provides $ARCH_LIST
+          for ARCH in $ARCH_LIST; do
+            echo "::group::Building template for $ARCH"
+            ARCH=$ARCH bash src/docker/run_in_docker.sh
+            mv template.img "template-${ARCH}.img"
+            echo "::endgroup::"
+          done
+
+      #------------------------------------------------------------------
+      # 4  Upload resulting disk images
+      #------------------------------------------------------------------
+      - name: Upload templates
+        uses: actions/upload-artifact@v4
         with:
-          name: template-img
-          path: template.img
+          name: noble-templates
+          path: |
+            template-x64.img
+            template-aarch64.img
+
+      #------------------------------------------------------------------
+      # 5  Upload combined build log (optional: comment out if unused)
+      #------------------------------------------------------------------
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-log
+          path: loop-lab.log

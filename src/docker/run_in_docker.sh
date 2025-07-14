@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 source "$(dirname "$0")/strict_trace.sh"
+source "$(dirname "$0")/arch_info.sh"
+
 IMAGE=loop-lab-disktools
-ARCH=${ARCH:-x64}                     # set ARCH=aarch64 when needed
+ARCH=${ARCH:-aarch4}                     # set ARCH=x64 when needed
 
 # (re)build the tools image
 docker build -t "$IMAGE" -f src/docker/Dockerfile src/docker
