@@ -1,8 +1,5 @@
 #!/usr/bin/env bash
-export PS4='[\D{%H:%M:%S}] ${BASH_SOURCE##*/}:${LINENO}> '
-set -xeuo pipefail
-
-echo "[hook] running disk-image build before push…"
-bash src/docker/run_in_docker.sh
-
-echo "[hook] pre-push hook succeeded – pushing allowed."
+set -euo pipefail
+bash "$(dirname "$0")/build_all_arch.sh"
+echo "[hook] pre-push OK – pushing allowed."
+exit 0

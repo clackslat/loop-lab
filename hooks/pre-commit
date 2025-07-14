@@ -1,17 +1,5 @@
 #!/usr/bin/env bash
-# hooks/pre-commit  – cleanup + build in Docker
-export PS4='[\D{%H:%M:%S}] ${BASH_SOURCE##*/}:${LINENO}> '
-set -xeuo pipefail
-
-echo "[hook] pre-commit – detaching stale loop devices …"
-if command -v docker >/dev/null 2>&1; then
-  docker run --rm --privileged ubuntu:22.04 losetup -D || true
-else
-  echo "[hook] warning: Docker not found; skipping losetup -D"
-fi
-
-echo "[hook] running disk-image build …"
-bash src/docker/run_in_docker.sh
-
+set -euo pipefail
+bash "$(dirname "$0")/build_all_arch.sh"
 echo "[hook] pre-commit OK – commit accepted."
 exit 0
