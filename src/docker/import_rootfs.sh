@@ -72,10 +72,15 @@ initrd_files=(/mnt/boot/initrd.img-*)
 KIMG=${kernel_files[0]##*/}
 IIMG=${initrd_files[0]##*/}
 
-cp "/mnt/boot/${KIMG}"    "/mnt/boot/efi/EFI/BOOT/${KIMG}.gz"
+cp "/mnt/boot/${KIMG}"    "/mnt/boot/efi/EFI/BOOT/${KIMG}"
 cp "/mnt/boot/${IIMG}"    "/mnt/boot/efi/EFI/BOOT/"
 ls -al /mnt/boot/efi/EFI/BOOT/
-gzip -d "/mnt/boot/efi/EFI/BOOT/${KIMG}.gz"
+case "$ARCH" in
+  aarch64)
+    mv "/mnt/boot/efi/EFI/BOOT/${KIMG}" "/mnt/boot/efi/EFI/BOOT/${KIMG}.gz"
+    gzip -d "/mnt/boot/efi/EFI/BOOT/${KIMG}.gz"
+    ;;
+esac
 ls -al /mnt/boot/efi/EFI/BOOT/
 # 16) **NEW** — write a startup.nsh so EDK2 auto-boots your stub
 ROOT_PARTUUID=$(blkid -s PARTUUID -o value "$ROOT")
