@@ -13,8 +13,6 @@
 #   ARCH=x64     ./src/docker/run_in_docker.sh
 # ---------------------------------------------------------------------------
 
-set -euo pipefail
-
 # -----------------------------------------------------------------------------
 # 0. Strict mode + tracing
 # -----------------------------------------------------------------------------
@@ -43,43 +41,6 @@ UEFI_ID=${UEFI_ID[$ARCH]}
 # -----------------------------------------------------------------------------
 # For each, if the primary path exists, use it; otherwise try Homebrew’s prefix.
 # basename() ensures we only change the directory.
-brew_prefix=$(brew --prefix 2>/dev/null || echo "")
-if [[ -n "$brew_prefix" ]]; then
-  _fallback_dir="$brew_prefix/share/qemu"
-else
-  _fallback_dir="/opt/homebrew/share/qemu"
-fi
-
-# firmware code
-if [[ -f "$_primary_code" ]]; then
-  FW_CODE="$_primary_code"
-elif [[ -f "$_fallback_dir/$(basename "$_primary_code")" ]]; then
-  FW_CODE="$_fallback_dir/$(basename "$_primary_code")"
-else
-  echo "ERROR: firmware code not found at '$_primary_code' or '$_fallback_dir/$(basename "$_primary_code")'" >&2
-  exit 1
-fi
-
-# vars template
-if [[ -f "$_primary_vars" ]]; then
-  VARS_TEMPLATE="$_primary_vars"
-elif [[ -f "$_fallback_dir/$(basename "$_primary_vars")" ]]; then
-  VARS_TEMPLATE="$_fallback_dir/$(basename "$_primary_vars")"
-else
-  echo "ERROR: template vars.fd not found at '$_primary_vars' or '$_fallback_dir/$(basename "$_primary_vars")'" >&2
-  exit 1
-fi
-
-# -----------------------------------------------------------------------------
-# 3. Create writable vars.fd once per repo checkout
-# -----------------------------------------------------------------------------
-if [[ ! -f "$VARS_COPY" ]]; then
-  cp "$VARS_TEMPLATE" "$VARS_COPY"
-  echo ">> Created writable NVRAM store: $VARS_COPY"
-fi
-
-# export for child scripts
-export ARCH FW_CODE VARS_COPY UEFI_ID
 
 # -----------------------------------------------------------------------------
 # 4. Build the disk-tools Docker image
@@ -97,6 +58,12 @@ docker run --rm --privileged \
   -e ARCH="$ARCH" \
   --entrypoint /work/src/docker/build_image.sh "$IMAGE"
 
+# 5.2 – stage UEFI Shell fallback (BOOTX64/AA64.EFI) on the ESP
+docker run --rm --privileged \
+  -v /dev:/dev \
+  -v "$(pwd)":/work -w /work \
+  -e ARCH="$ARCH" \
+  --entrypoint /work/src/docker/prep_esp.sh "$IMAGE"
 
 #  5.3 – import rootfs & install GRUB (writes into $VARS_COPY)
 docker run --rm --privileged \

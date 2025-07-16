@@ -3,7 +3,6 @@
 # import_rootfs.sh – unpack rootfs, install kernel, then stage EFI-stub kernel +
 #                    initrd, and decompress the .EFI stub if it’s still gzipped
 # -----------------------------------------------------------------------------
-set -euo pipefail
 
 # 1) Strict mode & tracing
 source /usr/local/lib/strict_trace.sh
@@ -16,7 +15,6 @@ ARCH=${1:-${ARCH:-x64}}
 IMG="/work/template-${ARCH}.img"
 
 # 4) Locate the rootfs tarball
-: "${ROOTFS_TAR[$ARCH]:?ROOTFS_TAR for ARCH='$ARCH' is not set}"
 TAR="${ROOTFS_TAR[$ARCH]}"
 
 # 5) Attach image and identify partitions
@@ -64,7 +62,6 @@ UUID=$EFI_UUID   /boot/efi  vfat    umask=0077      0 1
 EOF
 
 # 12) Stage EFI-stub kernel & initrd
-: "${UEFI_ID[$ARCH]:?UEFI_ID for ARCH='$ARCH' is not set}"
 ID="${UEFI_ID[$ARCH]}"
 
 kernel_files=(/mnt/boot/vmlinuz-*)
@@ -75,16 +72,21 @@ initrd_files=(/mnt/boot/initrd.img-*)
 KIMG=${kernel_files[0]##*/}
 IIMG=${initrd_files[0]##*/}
 
-cp "/mnt/boot/${KIMG}"    "/mnt/boot/efi/EFI/BOOT/BOOT${ID}.EFI"
-cp "/mnt/boot/${IIMG}"    "/mnt/boot/efi/EFI/BOOT/initrd-${ARCH}.img"
-
-# 13) Detect gzip magic (0x1f8b) and decompress in-place
-EFI_STUB="/mnt/boot/efi/EFI/BOOT/BOOT${ID}.EFI"
-if head -c2 "$EFI_STUB" | grep -q $'\x1f\x8b'; then
-  mv "$EFI_STUB" "${EFI_STUB}.gz"
-  gzip -d "${EFI_STUB}.gz"           # now produces "/mnt/.../BOOT${ID}"
-fi
-
+cp "/mnt/boot/${KIMG}"    "/mnt/boot/efi/EFI/BOOT/${KIMG}.gz"
+cp "/mnt/boot/${IIMG}"    "/mnt/boot/efi/EFI/BOOT/"
+ls -al /mnt/boot/efi/EFI/BOOT/
+gzip -d "/mnt/boot/efi/EFI/BOOT/${KIMG}.gz"
+ls -al /mnt/boot/efi/EFI/BOOT/
+# 16) **NEW** — write a startup.nsh so EDK2 auto-boots your stub
+ROOT_PARTUUID=$(blkid -s PARTUUID -o value "$ROOT")
+cat > /mnt/boot/efi/EFI/BOOT/startup.nsh <<EOF
+FS0:
+cd EFI\\BOOT
+${KIMG} root=PARTUUID=${ROOT_PARTUUID} ro console=ttyAMA0
+EOF
+chmod 0644 /mnt/boot/efi/EFI/BOOT/startup.nsh
+ls -al /mnt/boot/efi/EFI/BOOT/
+cat /mnt/boot/efi/EFI/BOOT/startup.nsh
 # 14) Cleanup mounts & detach
 umount /mnt/dev/pts
 umount /mnt/dev
