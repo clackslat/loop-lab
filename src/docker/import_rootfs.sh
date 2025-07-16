@@ -1,58 +1,97 @@
 #!/usr/bin/env bash
-# ---------------------------------------------------------------------------
-#  import_rootfs.sh – unpack Noble root-fs tarball, then install kernel+GRUB
-#                     (packages fetched online, values read from arch_info.sh)
-# ---------------------------------------------------------------------------
-source /usr/local/lib/strict_trace.sh    # PS4 + set -euo pipefail
-source /usr/local/lib/arch_info.sh       # gives ROOTFS_TAR, GRUB_PKG, GRUB_TARGET …
+# -----------------------------------------------------------------------------
+# import_rootfs.sh – unpack rootfs, install kernel, then stage EFI-stub kernel +
+#                    initrd, and decompress the .EFI stub if it’s still gzipped
+# -----------------------------------------------------------------------------
+set -euo pipefail
 
-ARCH=${1:-${ARCH:-x64}}                  # allow CLI or env override
-IMG=/work/template-${ARCH}.img
-# ── look up everything in a single place ------------------------------------
-TAR=${ROOTFS_TAR[$ARCH]}
-GRUB=${GRUB_PKG[$ARCH]}
-TARGET=${GRUB_TARGET[$ARCH]}
+# 1) Strict mode & tracing
+source /usr/local/lib/strict_trace.sh
 
-# ── 1. attach image & mount partitions --------------------------------------
-LOOP=$(losetup -f --show -P "$IMG")
-mount "${LOOP}p2" /mnt
-mkdir -p /mnt/boot/efi
-mount "${LOOP}p1" /mnt/boot/efi
+# 2) Per-arch metadata
+source /usr/local/lib/arch_info.sh
 
-# ── 2. unpack root-fs -------------------------------------------------------
+# 3) Pick ARCH and image
+ARCH=${1:-${ARCH:-x64}}
+IMG="/work/template-${ARCH}.img"
+
+# 4) Locate the rootfs tarball
+: "${ROOTFS_TAR[$ARCH]:?ROOTFS_TAR for ARCH='$ARCH' is not set}"
+TAR="${ROOTFS_TAR[$ARCH]}"
+
+# 5) Attach image and identify partitions
+LOOPDEV=$(losetup --find --show --partscan "$IMG")
+ESP="${LOOPDEV}p1"
+ROOT="${LOOPDEV}p2"
+
+# 6) Mount filesystems
+mount -t ext4  "$ROOT"      /mnt
+mkdir -p     /mnt/boot/efi
+mount -t vfat "$ESP"       /mnt/boot/efi
+
+# ── ensure EFI/BOOT exists on the *mounted* ESP
+mkdir -p /mnt/boot/efi/EFI/BOOT
+
+# 7) Unpack rootfs
 tar -xJpf "$TAR" -C /mnt --numeric-owner
 
-# ── 3. write fstab ----------------------------------------------------------
-cat > /mnt/etc/fstab <<EOF
-UUID=$(blkid -s UUID -o value "${LOOP}p2") /          ext4  defaults  0 1
-UUID=$(blkid -s UUID -o value "${LOOP}p1") /boot/efi  vfat  umask=0077 0 2
+# 8) Fix DNS in chroot
+mkdir -p /mnt/etc
+rm -f    /mnt/etc/resolv.conf
+install -Dm644 /etc/resolv.conf /mnt/etc/resolv.conf
+install -Dm644 /etc/hosts       /mnt/etc/hosts
+
+# 9) Mount pseudo-filesystems for chroot
+mount -t proc     proc     /mnt/proc
+mount -t sysfs    sysfs    /mnt/sys
+mount -t devtmpfs devtmpfs /mnt/dev
+mkdir -p /mnt/dev/pts
+mount -t devpts   devpts   /mnt/dev/pts
+
+# 10) Chroot & install kernel + shim
+chroot /mnt /bin/bash -euo pipefail <<EOF
+export DEBIAN_FRONTEND=noninteractive
+apt-get update
+apt-get install -y shim-signed linux-image-generic
 EOF
 
-# ── 4. bind pseudo-filesystems + resolver -----------------------------------
-for d in /dev /dev/pts /proc /sys; do mount --bind "$d" "/mnt$d"; done
-mkdir -p /mnt/run/systemd/resolve
-cp /etc/resolv.conf /mnt/run/systemd/resolve/stub-resolv.conf 
+# 11) Write fstab
+ROOT_UUID=$(blkid -s UUID -o value "$ROOT")
+EFI_UUID=$(blkid -s UUID -o value "$ESP")
+cat > /mnt/etc/fstab <<EOF
+UUID=$ROOT_UUID  /          ext4    defaults        0 1
+UUID=$EFI_UUID   /boot/efi  vfat    umask=0077      0 1
+EOF
 
-# ── 5. chroot: install kernel & GRUB ----------------------------------------
-chroot /mnt bash -euo pipefail -c "
-  apt-get update
-  DEBIAN_FRONTEND=noninteractive \
-    apt-get -y install $GRUB shim-signed linux-image-generic
+# 12) Stage EFI-stub kernel & initrd
+: "${UEFI_ID[$ARCH]:?UEFI_ID for ARCH='$ARCH' is not set}"
+ID="${UEFI_ID[$ARCH]}"
 
-  grub-install \
-      --target=$TARGET \
-      --efi-directory=/boot/efi \
-      --bootloader-id=UBUNTU \
-      --no-nvram \
-      --removable
+kernel_files=(/mnt/boot/vmlinuz-*)
+initrd_files=(/mnt/boot/initrd.img-*)
+(( ${#kernel_files[@]} )) || { echo "ERROR: no kernel image found" >&2; exit 1; }
+(( ${#initrd_files[@]} )) || { echo "ERROR: no initrd image found" >&2; exit 1; }
 
-  update-grub
-"
+KIMG=${kernel_files[0]##*/}
+IIMG=${initrd_files[0]##*/}
 
-# ── 6. clean-up -------------------------------------------------------------
-for d in /dev/pts /dev /proc /sys; do umount "/mnt$d"; done
+cp "/mnt/boot/${KIMG}"    "/mnt/boot/efi/EFI/BOOT/BOOT${ID}.EFI"
+cp "/mnt/boot/${IIMG}"    "/mnt/boot/efi/EFI/BOOT/initrd-${ARCH}.img"
+
+# 13) Detect gzip magic (0x1f8b) and decompress in-place
+EFI_STUB="/mnt/boot/efi/EFI/BOOT/BOOT${ID}.EFI"
+if head -c2 "$EFI_STUB" | grep -q $'\x1f\x8b'; then
+  mv "$EFI_STUB" "${EFI_STUB}.gz"
+  gzip -d "${EFI_STUB}.gz"           # now produces "/mnt/.../BOOT${ID}"
+fi
+
+# 14) Cleanup mounts & detach
+umount /mnt/dev/pts
+umount /mnt/dev
+umount /mnt/sys
+umount /mnt/proc
 umount /mnt/boot/efi
 umount /mnt
-losetup -d "$LOOP"
+losetup -d "$LOOPDEV"
 
-echo '[✓] rootfs populated and GRUB installed'
+echo "[✓] import_rootfs complete: rootfs unpacked, kernel+initrd staged, EFI stub fixed"
