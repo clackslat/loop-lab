@@ -18,7 +18,16 @@ jobs:
       - uses: actions/checkout@v4
 
       #------------------------------------------------------------------
-      # 2  Build the disk-tools image (contains root-fs tarballs + arch_info)
+      # 2  Install QEMU and register binfmt handlers for multi-arch support
+      #------------------------------------------------------------------
+      - name: Set up QEMU
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y qemu-user-static
+          docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
+
+      #------------------------------------------------------------------
+      # 3  Build the disk-tools image (contains root-fs tarballs + arch_info)
       #------------------------------------------------------------------
       - name: Build disk-tools image
         run: |
