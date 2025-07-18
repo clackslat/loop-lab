@@ -18,36 +18,47 @@ IMG="/work/template-${ARCH}.img"
 TAR="${ROOTFS_TAR[$ARCH]}"
 
 # 5) Attach image and identify partitions
+# Loop devices are naturally isolated per architecture because:
+# - Each Docker container has its own device namespace
+# - Container privileges are limited to its own devices
+# - Loop devices are automatically cleaned up on container exit
+# - Each arch uses its own image file (template-${ARCH}.img)
 LOOPDEV=$(losetup --find --show --partscan "$IMG")
 ESP="${LOOPDEV}p1"
 ROOT="${LOOPDEV}p2"
 
 # 6) Mount filesystems
-mount -t ext4  "$ROOT"      /mnt
-mkdir -p     /mnt/boot/efi
-mount -t vfat "$ESP"       /mnt/boot/efi
+MOUNT_POINT="${MOUNT_POINT:-/mnt}"
+mkdir -p "$MOUNT_POINT"
+mount -t ext4  "$ROOT"      "$MOUNT_POINT"
+mkdir -p     "$MOUNT_POINT/boot/efi"
+mount -t vfat "$ESP"       "$MOUNT_POINT/boot/efi"
 
 # ── ensure EFI/BOOT exists on the *mounted* ESP
-mkdir -p /mnt/boot/efi/EFI/BOOT
+mkdir -p "$MOUNT_POINT/boot/efi/EFI/BOOT"
 
 # 7) Unpack rootfs
-tar -xJpf "$TAR" -C /mnt --numeric-owner
+tar -xJpf "$TAR" -C "$MOUNT_POINT" --numeric-owner
 
 # 8) Fix DNS in chroot
-mkdir -p /mnt/etc
-rm -f    /mnt/etc/resolv.conf
-install -Dm644 /etc/resolv.conf /mnt/etc/resolv.conf
-install -Dm644 /etc/hosts       /mnt/etc/hosts
+mkdir -p "$MOUNT_POINT/etc"
+rm -f    "$MOUNT_POINT/etc/resolv.conf"
+install -Dm644 /etc/resolv.conf "$MOUNT_POINT/etc/resolv.conf"
+install -Dm644 /etc/hosts       "$MOUNT_POINT/etc/hosts"
 
 # 9) Mount pseudo-filesystems for chroot
-mount -t proc     proc     /mnt/proc
-mount -t sysfs    sysfs    /mnt/sys
-mount -t devtmpfs devtmpfs /mnt/dev
-mkdir -p /mnt/dev/pts
-mount -t devpts   devpts   /mnt/dev/pts
+mkdir -p "$MOUNT_POINT/proc" "$MOUNT_POINT/sys" "$MOUNT_POINT/dev"
+mount -t proc     proc     "$MOUNT_POINT/proc"
+mount -t sysfs    sysfs    "$MOUNT_POINT/sys"
+mount -t devtmpfs devtmpfs "$MOUNT_POINT/dev"
+mkdir -p "$MOUNT_POINT/dev/pts"
+mount -t devpts   devpts   "$MOUNT_POINT/dev/pts"
+
+# Setup cleanup trap for all mounts and loop device
+trap 'umount "$MOUNT_POINT/dev/pts" "$MOUNT_POINT/dev" "$MOUNT_POINT/sys" "$MOUNT_POINT/proc" "$MOUNT_POINT/boot/efi" "$MOUNT_POINT"; rmdir "$MOUNT_POINT"; losetup -d "$LOOPDEV"' EXIT
 
 # 10) Chroot & install kernel + shim
-chroot /mnt /bin/bash -euo pipefail <<EOF
+chroot "$MOUNT_POINT" /bin/bash -euo pipefail <<EOF
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
 apt-get install -y shim-signed linux-image-generic
@@ -56,7 +67,7 @@ EOF
 # 11) Write fstab
 ROOT_UUID=$(blkid -s UUID -o value "$ROOT")
 EFI_UUID=$(blkid -s UUID -o value "$ESP")
-cat > /mnt/etc/fstab <<EOF
+cat > "$MOUNT_POINT/etc/fstab" <<EOF
 UUID=$ROOT_UUID  /          ext4    defaults        0 1
 UUID=$EFI_UUID   /boot/efi  vfat    umask=0077      0 1
 EOF
@@ -64,41 +75,77 @@ EOF
 # 12) Stage EFI-stub kernel & initrd
 ID="${UEFI_ID[$ARCH]}"
 
-kernel_files=(/mnt/boot/vmlinuz-*)
-initrd_files=(/mnt/boot/initrd.img-*)
+kernel_files=("$MOUNT_POINT/boot/vmlinuz-"*)
+initrd_files=("$MOUNT_POINT/boot/initrd.img-"*)
 (( ${#kernel_files[@]} )) || { echo "ERROR: no kernel image found" >&2; exit 1; }
 (( ${#initrd_files[@]} )) || { echo "ERROR: no initrd image found" >&2; exit 1; }
 
 KIMG=${kernel_files[0]##*/}
 IIMG=${initrd_files[0]##*/}
 
-cp "/mnt/boot/${KIMG}"    "/mnt/boot/efi/EFI/BOOT/${KIMG}"
-cp "/mnt/boot/${IIMG}"    "/mnt/boot/efi/EFI/BOOT/"
-ls -al /mnt/boot/efi/EFI/BOOT/
+cp "$MOUNT_POINT/boot/${KIMG}"    "$MOUNT_POINT/boot/efi/EFI/BOOT/${KIMG}"
+cp "$MOUNT_POINT/boot/${IIMG}"    "$MOUNT_POINT/boot/efi/EFI/BOOT/"
+ls -al "$MOUNT_POINT/boot/efi/EFI/BOOT/"
 case "$ARCH" in
+  # ── 64-bit Arm ──────────────────────────────────────────────────────────────
   aarch64)
-    mv "/mnt/boot/efi/EFI/BOOT/${KIMG}" "/mnt/boot/efi/EFI/BOOT/${KIMG}.gz"
-    gzip -d "/mnt/boot/efi/EFI/BOOT/${KIMG}.gz"
+    # 1) EFI stub is still gzipped: rename → decompress
+    mv "$MOUNT_POINT/boot/efi/EFI/BOOT/${KIMG}" "$MOUNT_POINT/boot/efi/EFI/BOOT/${KIMG}.gz"
+    gzip -d "$MOUNT_POINT/boot/efi/EFI/BOOT/${KIMG}.gz"
+
+    # 2) Preferred console device for most PL011/virt QEMU boards
+    #    ttyAMA0 is the first PL011; earlycon keeps the first printk lines
+    CONSOLE_FLAGS="console=ttyAMA0,115200 earlycon=ttyAMA0,115200"
+    ;;
+
+  # ── 64-bit x86 (QEMU, KVM, bare-metal PCs) ─────────────────────────────────
+  x64|amd64|x86_64)
+    # No image tweaking needed; bzImage is already EFI-bootable
+    # Use the first 16550 UART exposed by QEMU/SeaBIOS/OVMF
+    CONSOLE_FLAGS="console=ttyS0,115200 earlycon=ttyS0,115200"
+    ;;
+
+  # ── (Optional) RISC-V example to show how you’d extend it ─────────────────
+  riscv64)
+    # Kernel image is fine; just pick the usual SiFive UART
+    CONSOLE_FLAGS="console=ttySIF0,115200 earlycon"
+    ;;
+
+  # ── Catch-all ──────────────────────────────────────────────────────────────
+  *)
+    echo "ERROR: unsupported ARCH '$ARCH'" >&2
+    exit 1
     ;;
 esac
-ls -al /mnt/boot/efi/EFI/BOOT/
+ls -al "$MOUNT_POINT/boot/efi/EFI/BOOT/"
 # 16) **NEW** — write a startup.nsh so EDK2 auto-boots your stub
 ROOT_PARTUUID=$(blkid -s PARTUUID -o value "$ROOT")
-cat > /mnt/boot/efi/EFI/BOOT/startup.nsh <<EOF
+CMDLINE="root=PARTUUID=${ROOT_PARTUUID} rootfstype=ext4 rw rootwait ${CONSOLE_FLAGS} console=tty0 earlyprintk=efi,keep ignore_loglevel loglevel=8 debug initcall_debug efi=debug systemd.log_level=debug systemd.log_target=console"
+cat > "$MOUNT_POINT/boot/efi/EFI/BOOT/startup.nsh" <<EOF
+@echo -off
+echo "Checking mapped devices..."
+map -r
+echo "Entering ESP filesystem..."
 FS0:
-cd EFI\\BOOT
-${KIMG} root=PARTUUID=${ROOT_PARTUUID} ro console=ttyAMA0
+cd EFI\BOOT
+echo "Current directory contents:"
+ls
+echo "Command line:"
+echo "${KIMG} initrd=\EFI\BOOT\\${IIMG} ${CMDLINE}"
+echo "Loading kernel..."
+${KIMG} initrd=\EFI\BOOT\\${IIMG} ${CMDLINE}
 EOF
-chmod 0644 /mnt/boot/efi/EFI/BOOT/startup.nsh
-ls -al /mnt/boot/efi/EFI/BOOT/
-cat /mnt/boot/efi/EFI/BOOT/startup.nsh
-# 14) Cleanup mounts & detach
-umount /mnt/dev/pts
-umount /mnt/dev
-umount /mnt/sys
-umount /mnt/proc
-umount /mnt/boot/efi
-umount /mnt
-losetup -d "$LOOPDEV"
+chmod 0644 "$MOUNT_POINT/boot/efi/EFI/BOOT/startup.nsh"
+ls -al "$MOUNT_POINT/boot/efi/EFI/BOOT/"
+cat "$MOUNT_POINT/boot/efi/EFI/BOOT/startup.nsh"
+
+# 14) Cleanup handled by EXIT trap
+# umount "$MOUNT_POINT/dev/pts"
+# umount "$MOUNT_POINT/dev"
+# umount "$MOUNT_POINT/sys"
+# umount "$MOUNT_POINT/proc"
+# umount "$MOUNT_POINT/boot/efi"
+# umount "$MOUNT_POINT"
+# losetup -d "$LOOPDEV"
 
 echo "[✓] import_rootfs complete: rootfs unpacked, kernel+initrd staged, EFI stub fixed"
