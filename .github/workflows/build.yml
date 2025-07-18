@@ -35,7 +35,6 @@ jobs:
           for ARCH in $ARCH_LIST; do
             echo "::group::Building template for $ARCH"
             ARCH=$ARCH bash src/docker/run_in_docker.sh
-            mv template.img "template-${ARCH}.img"
             echo "::endgroup::"
           done
 
