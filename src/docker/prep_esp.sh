@@ -1,28 +1,58 @@
 #!/usr/bin/env bash
-# -----------------------------------------------------------------------------
-# prep_esp.sh – Stage only the UEFI Shell for the target ARCH by fetching it
+# =============================================================================
+# EFI System Partition Preparation Script (prep_esp.sh)
+# =============================================================================
+# Purpose:
+#   Downloads and installs the appropriate UEFI Shell for the target
+#   architecture into the EFI System Partition (ESP). The UEFI Shell acts as
+#   a fallback boot option and debugging tool.
 #
-# Runs inside Docker with the ESP mounted at /mnt.
-# Sources:
-#   strict_trace.sh → set -xeuo pipefail + PS4 tracing
-#   arch_info.sh    → defines ARCH_LIST, UEFI_ID[]
+# Environment:
+#   - Runs inside the disk-tools Docker container
+#   - Expects ESP to be mounted at /mnt
+#   - Requires network access to download UEFI shell binaries
 #
-# Usage (inside run_in_docker.sh):
-#   ARCH=aarch64 ./prep_esp.sh
+# Dependencies:
+#   - strict_trace.sh: Provides shell safety settings and tracing
+#   - arch_info.sh: Provides architecture-specific configuration
+#
+# Usage:
+#   ARCH=<arch> ./prep_esp.sh
+#   Example: ARCH=aarch64 ./prep_esp.sh
+#
+# Note:
+#   This script is typically called by run_in_docker.sh rather than
+#   being invoked directly.
+# =============================================================================
 # -----------------------------------------------------------------------------
+# Script Setup and Configuration
+# -----------------------------------------------------------------------------
+# Import safety settings and tracing configuration
 source "$(dirname "${BASH_SOURCE[0]}")/strict_trace.sh"
+# Log script directory for debugging
 echo "$(dirname "${BASH_SOURCE[0]}")"
 
-# 2. Per-arch metadata
+# -----------------------------------------------------------------------------
+# Architecture Configuration
+# -----------------------------------------------------------------------------
+# Import architecture-specific settings
 source "$(dirname "${BASH_SOURCE[0]}")/arch_info.sh"
 
-# 3) Pick ARCH and image
+# Set target architecture (default to x64 if not specified)
 ARCH=${1:-${ARCH:-x64}}
+# Define image path based on architecture
 IMG="/work/template-${ARCH}.img"
 
-# 4. Map ARCH → official EDK2 shell URL
+# -----------------------------------------------------------------------------
+# UEFI Shell Download URLs
+# -----------------------------------------------------------------------------
+# Map architectures to their corresponding UEFI Shell binary URLs
+# Using Pete Batard's pre-built UEFI shell binaries from:
+# https://github.com/pbatard/UEFI-Shell/releases
 declare -A SHELL_URL=(
+  # x64 UEFI shell binary
   ['x64']="https://github.com/pbatard/UEFI-Shell/releases/download/25H1/shellx64.efi"
+  # aarch64 UEFI shell binary
   ['aarch64']="https://github.com/pbatard/UEFI-Shell/releases/download/25H1/shellaa64.efi"
 )
 

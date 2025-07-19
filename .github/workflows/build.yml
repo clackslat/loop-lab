@@ -1,68 +1,130 @@
+# =============================================================================
+# GitHub Actions Workflow: Build Noble templates
+# =============================================================================
+# Purpose:
+#   This workflow automates the build process for Noble (Ubuntu 24.04) disk 
+#   images targeting multiple architectures (x64 and aarch64). It handles:
+#   1. Setting up QEMU for cross-architecture builds
+#   2. Building the disk-tools container with rootfs tarballs
+#   3. Creating bootable disk images for each architecture
+#   4. Uploading built images and logs as artifacts
+#
+# Trigger:
+#   Runs automatically on pushes to the main branch to ensure all changes
+#   result in buildable images
+# =============================================================================
+
 name: Build Noble templates
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main ]  # Only trigger on pushes to main branch
 
+# Job Configuration
+# -----------------------------------------------------------------------------
 jobs:
   build:
+    # Use latest Ubuntu runner for best compatibility with Noble (24.04)
     runs-on: ubuntu-latest
+    
     defaults:
       run:
+        # Ensure consistent shell behavior across steps
         shell: bash
 
-    steps:
-      #------------------------------------------------------------------
-      # 1  Checkout repo
-      #------------------------------------------------------------------
+    steps:  # Workflow steps executed sequentially
+      # -----------------------------------------------------------------------
+      # Step 1: Repository Checkout
+      # -----------------------------------------------------------------------
+      # Check out the repository code. This step is required before we can
+      # access any of the repository files for building.
+      # -----------------------------------------------------------------------
       - uses: actions/checkout@v4
 
-      #------------------------------------------------------------------
-      # 2  Install QEMU and register binfmt handlers for multi-arch support
-      #------------------------------------------------------------------
+      # -----------------------------------------------------------------------
+      # Step 2: QEMU Setup for Multi-architecture Support
+      # -----------------------------------------------------------------------
+      # This step enables building ARM64 binaries on x86_64 runners by:
+      # 1. Installing QEMU user-mode emulation support
+      # 2. Registering binfmt handlers to automatically use QEMU when needed
+      # 3. This is crucial for chroot operations on ARM64 rootfs
+      # -----------------------------------------------------------------------
       - name: Set up QEMU
         run: |
+          # Update package list to ensure we get latest QEMU
           sudo apt-get update
+          # Install QEMU user-mode emulation package
           sudo apt-get install -y qemu-user-static
+          # Register binfmt handlers using the multiarch helper container
           docker run --rm --privileged multiarch/qemu-user-static --reset -p yes
 
-      #------------------------------------------------------------------
-      # 3  Build the disk-tools image (contains root-fs tarballs + arch_info)
-      #------------------------------------------------------------------
+      # -----------------------------------------------------------------------
+      # Step 3: Build Disk-tools Container Image
+      # -----------------------------------------------------------------------
+      # Creates a Docker image containing:
+      # - Base utilities for disk manipulation and filesystem operations
+      # - Pre-downloaded Ubuntu Noble rootfs tarballs for all architectures
+      # - All necessary scripts for disk image creation
+      # Note: --no-cache ensures we always get fresh rootfs tarballs
+      # -----------------------------------------------------------------------
       - name: Build disk-tools image
         run: |
           docker build --no-cache \
             -t loop-lab-disktools \
             -f src/docker/Dockerfile src/docker
 
-      #------------------------------------------------------------------
-      # 3  Generate templates for every architecture in arch_info.sh
-      #------------------------------------------------------------------
+      # -----------------------------------------------------------------------
+      # Step 4: Generate Bootable Disk Images
+      # -----------------------------------------------------------------------
+      # For each supported architecture (x64, aarch64):
+      # 1. Creates a disk image with EFI System and root partitions
+      # 2. Installs UEFI shell as fallback boot option
+      # 3. Unpacks architecture-specific rootfs
+      # 4. Configures bootloader and kernel
+      # 
+      # Uses arch_info.sh to determine supported architectures and their
+      # specific configuration parameters
+      # -----------------------------------------------------------------------
       - name: Build templates for x64 & aarch64
         run: |
+          # Load architecture configuration and supported architecture list
           source src/docker/arch_info.sh    # provides $ARCH_LIST
+          
+          # Build images for each architecture sequentially
           for ARCH in $ARCH_LIST; do
+            # Group output in GitHub Actions log for better readability
             echo "::group::Building template for $ARCH"
+            # Run the main build script with appropriate architecture
             ARCH=$ARCH bash src/docker/run_in_docker.sh
             echo "::endgroup::"
           done
 
-      #------------------------------------------------------------------
-      # 4  Upload resulting disk images
-      #------------------------------------------------------------------
+      # -----------------------------------------------------------------------
+      # Step 5: Upload Built Disk Images
+      # -----------------------------------------------------------------------
+      # Stores the generated disk images as workflow artifacts for:
+      # - Download and testing
+      # - Validation of build outputs
+      # - Use in subsequent workflow steps or other workflows
+      # -----------------------------------------------------------------------
       - name: Upload templates
         uses: actions/upload-artifact@v4
         with:
           name: noble-templates
           path: |
+            # Upload both architecture variants
             template-x64.img
             template-aarch64.img
 
-      #------------------------------------------------------------------
-      # 5  Upload combined build log (optional: comment out if unused)
-      #------------------------------------------------------------------
+      # -----------------------------------------------------------------------
+      # Step 6: Upload Build Logs
+      # -----------------------------------------------------------------------
+      # Captures the combined build log for debugging and audit purposes.
+      # The 'if: always()' ensures logs are uploaded even if previous steps fail,
+      # which is crucial for debugging failed builds.
+      # -----------------------------------------------------------------------
       - name: Upload build log
-        if: always()
+        if: always()  # Upload logs even if the build fails
         uses: actions/upload-artifact@v4
         with:
           name: build-log
