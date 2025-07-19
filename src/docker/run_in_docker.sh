@@ -1,17 +1,19 @@
 #!/usr/bin/env bash
-# ---------------------------------------------------------------------------
+#==============================================================================
 # run_in_docker.sh – entry point for building the loop-lab disk images
 #
 # 1. loads strict mode + tracing      (strict_trace.sh)
 # 2. loads per-arch metadata         (arch_info.sh)
-# 3. ensures a writable vars.fd      (one per ARCH, git-ignored)
-# 4. (re)builds the disk-tools Docker
-# 5. runs the three build stages
+# 3. (re)builds the disk-tools Docker
+# 4. runs the build stages:
+#    - build_image.sh: create and partition disk image
+#    - prep_esp.sh: setup EFI system partition with shell
+#    - import_rootfs.sh: install root filesystem
 #
 # Usage:
 #   ARCH=aarch64 ./src/docker/run_in_docker.sh
 #   ARCH=x64     ./src/docker/run_in_docker.sh
-# ---------------------------------------------------------------------------
+#==============================================================================
 
 # -----------------------------------------------------------------------------
 # 0. Strict mode + tracing
@@ -30,17 +32,8 @@ if [[ ! " ${ARCH_LIST} " =~ " ${ARCH} " ]]; then
   exit 1
 fi
 
-# raw values from arch_info.sh
-_primary_code=${FW_CODE[$ARCH]}
-_primary_vars=${FW_VARS_TEMPLATE[$ARCH]}
-VARS_COPY=${FW_VARS_WORK[$ARCH]}
+# Get the UEFI ID for this architecture (e.g., X64 or AA64)
 UEFI_ID=${UEFI_ID[$ARCH]}
-
-# -----------------------------------------------------------------------------
-# 2. Resolve “code.fd” and “vars.fd” template paths with fallback
-# -----------------------------------------------------------------------------
-# For each, if the primary path exists, use it; otherwise try Homebrew’s prefix.
-# basename() ensures we only change the directory.
 
 # -----------------------------------------------------------------------------
 # 4. Build the disk-tools Docker image
@@ -95,7 +88,7 @@ docker run --rm --privileged \
   -e MOUNT_POINT="/mnt_${ARCH}" \
   --entrypoint /work/src/docker/prep_esp.sh "$IMAGE"
 
-#  5.3 – import rootfs & install GRUB (writes into $VARS_COPY)
+# 5.3 – import Ubuntu root filesystem
 # Final stage uses same isolation mechanisms:
 # - Architecture-specific mount point
 # - Independent device management

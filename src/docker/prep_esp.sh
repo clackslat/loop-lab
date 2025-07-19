@@ -44,20 +44,9 @@ ARCH=${1:-${ARCH:-x64}}
 IMG="/work/template-${ARCH}.img"
 
 # -----------------------------------------------------------------------------
-# UEFI Shell Download URLs
+# Get the UEFI Shell download URL from arch_info.sh configuration
 # -----------------------------------------------------------------------------
-# Map architectures to their corresponding UEFI Shell binary URLs
-# Using Pete Batard's pre-built UEFI shell binaries from:
-# https://github.com/pbatard/UEFI-Shell/releases
-declare -A SHELL_URL=(
-  # x64 UEFI shell binary
-  ['x64']="https://github.com/pbatard/UEFI-Shell/releases/download/25H1/shellx64.efi"
-  # aarch64 UEFI shell binary
-  ['aarch64']="https://github.com/pbatard/UEFI-Shell/releases/download/25H1/shellaa64.efi"
-)
-
-# 5. Lookup the URL and UEFI_ID for this ARCH
-URL="${SHELL_URL[$ARCH]}"
+URL="${EFI_SHELL_URL[$ARCH]}"
 ID="${UEFI_ID[$ARCH]}"             # X64 or AA64
 # 2. Attach the image and mount the ESP at /mnt
 LOOPDEV=$(losetup --find --show --partscan "$IMG")
