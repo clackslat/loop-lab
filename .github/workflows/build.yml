@@ -85,19 +85,17 @@ jobs:
       # Uses arch_info.sh to determine supported architectures and their
       # specific configuration parameters
       # -----------------------------------------------------------------------
-      - name: Build templates for x64 & aarch64
+      - name: Build templates for all architectures
         run: |
-          # Load architecture configuration and supported architecture list
-          source src/docker/arch_info.sh    # provides $ARCH_LIST
+          # Use our common build script that handles both CI and local builds
+          # The script automatically detects GitHub Actions and adjusts parallelism
+          bash hooks/build_all_arch.sh
           
-          # Build images for each architecture sequentially
-          for ARCH in $ARCH_LIST; do
-            # Group output in GitHub Actions log for better readability
-            echo "::group::Building template for $ARCH"
-            # Run the main build script with appropriate architecture
-            ARCH=$ARCH bash src/docker/run_in_docker.sh
-            echo "::endgroup::"
-          done
+          # Note: build_all_arch.sh handles:
+          # - Proper cleanup of loop devices
+          # - Resource-aware parallel/serial execution
+          # - Comprehensive error handling and reporting
+          # - Consistent logging across CI and local builds
 
       # -----------------------------------------------------------------------
       # Step 5: Upload Built Disk Images
