@@ -21,3 +21,5 @@ graph TD
         G --> H[Linux boots, root=/dev/sdX2 on same LUN]
     end
 ```
+
+# Testing the GitHub Actions workflow for PR gating
