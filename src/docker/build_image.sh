@@ -19,8 +19,55 @@
 #     ARCH=aarch64 ./build_image.sh
 # =============================================================================
 
-# Import strict mode settings and tracing configuration
-source /usr/local/lib/strict_trace.sh
+# -----------------------------------------------------------------------------
+# Environment Detection and Script Sourcing
+# -----------------------------------------------------------------------------
+# Determine if we're running inside Docker, under ShellCheck, or in local environment
+# This approach handles different runtime environments gracefully
+
+# Function to detect Docker environment
+in_docker() {
+  # Check for .dockerenv file
+  [ -f /.dockerenv ] && return 0
+  # Check for docker in cgroup
+  grep -q docker /proc/self/cgroup 2>/dev/null && return 0
+  # Not in Docker
+  return 1
+}
+
+# Function to safely source scripts with environment awareness
+safe_source() {
+  local script_path="$1"
+  local script_name
+  script_name=$(basename "$script_path")
+  
+  if [ -f "$script_path" ]; then
+    # File exists, source it directly
+    # shellcheck disable=SC1090
+    . "$script_path"
+  elif in_docker; then
+    # We're in Docker but file doesn't exist - this shouldn't happen
+    echo "Error: Expected Docker script $script_path not found" >&2
+    exit 1
+  else
+    # We're running in a non-Docker environment (local or CI)
+    # Set up equivalent functionality for the specific script
+    case "$script_name" in
+      strict_trace.sh)
+        # Apply strict mode settings that would be in strict_trace.sh
+        set -euo pipefail
+        export PS4='[$(printf "%(%H:%M:%S)T" -1)] ${BASH_SOURCE##*/}:${LINENO}> '
+        ;;
+      *)
+        # For other scripts, just report they're being skipped
+        echo "Notice: $script_path not found, running in non-Docker environment" >&2
+        ;;
+    esac
+  fi
+}
+
+# Source the strict trace script with environment awareness
+safe_source "/usr/local/lib/strict_trace.sh"
 
 # -----------------------------------------------------------------------------
 # Configuration Variables

@@ -1,5 +1,44 @@
 #!/usr/bin/env bash
 set -euo pipefail
+
+# Skip ShellCheck if SKIP_SHELLCHECK=1
+if [[ "${SKIP_SHELLCHECK:-0}" == "1" ]]; then
+  echo "[hook] Skipping ShellCheck as requested by SKIP_SHELLCHECK=1"
+else
+  # Find all shell scripts in the repository
+  echo "[hook] Running ShellCheck on shell scripts..."
+  # Source the shared script finder function
+  # shellcheck disable=SC1091
+  source "$(dirname "$0")/find_shell_scripts.sh"
+# Use the function to get a list of shell scripts
+SHELL_SCRIPTS=$(find_shell_scripts .)
+
+# Check if ShellCheck is installed
+if ! command -v shellcheck &> /dev/null; then
+  echo "[hook] ShellCheck not found. Please install it: brew install shellcheck"
+  exit 1
+fi
+
+# Run ShellCheck on all shell scripts
+FAILED=0
+for script in $SHELL_SCRIPTS; do
+  echo "[hook] Checking $script..."
+  if ! shellcheck -x "$script"; then
+    FAILED=1
+    echo "[hook] ❌ $script has ShellCheck issues."
+  fi
+done
+
+if [ $FAILED -eq 1 ]; then
+  echo "[hook] ❌ ShellCheck found issues. Please fix them before committing."
+  echo "[hook] Tip: To temporarily bypass ShellCheck, use SKIP_SHELLCHECK=1 git commit ..."
+  exit 1
+fi
+
+echo "[hook] ✅ ShellCheck passed."
+fi # End of SKIP_SHELLCHECK conditional
+
+# Run the build test
 bash "$(dirname "$0")/build_all_arch.sh"
 echo "[hook] pre-commit OK – commit accepted."
 exit 0

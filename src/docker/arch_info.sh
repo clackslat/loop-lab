@@ -20,7 +20,8 @@ set -euo pipefail
 # - x64: Standard 64-bit x86 architecture (also known as amd64/x86_64)
 # - aarch64: 64-bit ARM architecture (also known as arm64)
 ###############################################################################
-ARCH_LIST="x64 aarch64"  # Space-separated list of supported architectures
+# Export for use in other scripts
+export ARCH_LIST="x64 aarch64"  # Space-separated list of supported architectures
 
 ###############################################################################
 # Root Filesystem Tarball Configuration
@@ -32,12 +33,16 @@ ARCH_LIST="x64 aarch64"  # Space-separated list of supported architectures
 # Path format: /rootfs-cache/<deb-arch>/rootfs.tar.xz
 # where <deb-arch> is the Debian architecture name (amd64/arm64)
 ###############################################################################
-declare -A ROOTFS_TAR=(
+# Exported for use in build scripts
+declare -A ROOTFS_TAR
+ROOTFS_TAR=(
   # x64 systems use amd64 Ubuntu rootfs
   [x64]="/rootfs-cache/amd64/rootfs.tar.xz"
   # aarch64 systems use arm64 Ubuntu rootfs
   [aarch64]="/rootfs-cache/arm64/rootfs.tar.xz"
 )
+# Export for use in other scripts
+export ROOTFS_TAR
 
 ###############################################################################
 # UEFI Shell Configuration
@@ -45,12 +50,16 @@ declare -A ROOTFS_TAR=(
 # EFI_SHELL_URL maps architectures to their UEFI shell download URLs.
 # The shells are downloaded directly into the ESP as fallback boot options.
 ###############################################################################
-declare -A EFI_SHELL_URL=(
+# Define array for shell URLs
+declare -A EFI_SHELL_URL
+EFI_SHELL_URL=(
   # x64 UEFI shell download URL
   [x64]="https://github.com/pbatard/UEFI-Shell/releases/download/25H1/shellx64.efi"
   # aarch64 UEFI shell download URL
   [aarch64]="https://github.com/pbatard/UEFI-Shell/releases/download/25H1/shellaa64.efi"
 )
+# Export for use in other scripts
+export EFI_SHELL_URL
 
 ###############################################################################
 # UEFI Binary Naming
@@ -59,9 +68,13 @@ declare -A EFI_SHELL_URL=(
 # This follows the UEFI specification for architecture-specific boot files
 # Example: BOOTX64.EFI or BOOTAA64.EFI in the ESP's /EFI/BOOT/ directory
 ###############################################################################
-declare -A UEFI_ID=(
+# Define array for UEFI IDs
+declare -A UEFI_ID
+UEFI_ID=(
   # x64: Uses X64 suffix (BOOTX64.EFI)
   [x64]="X64"
   # aarch64: Uses AA64 suffix (BOOTAA64.EFI)
   [aarch64]="AA64"
 )
+# Export for use in other scripts
+export UEFI_ID

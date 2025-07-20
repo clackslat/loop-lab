@@ -13,7 +13,8 @@ source ./src/docker/arch_info.sh           # provides $ARCH_LIST, maps
 # Function to cleanup specific loop device for an architecture
 cleanup_arch_loops() {
     local arch=$1
-    local start_time=$(date +%s.%N)
+    local start_time
+    start_time=$(date +%s.%N)
     echo "[build_all_arch:$arch] checking for stale loop devices..."
     if command -v docker >/dev/null 2>&1; then
         # Look for loop devices associated with our image file
@@ -23,8 +24,10 @@ cleanup_arch_loops() {
                 losetup -d \$dev;
              done"
     fi
-    local end_time=$(date +%s.%N)
-    local duration=$(echo "$end_time - $start_time" | bc)
+    local end_time
+    end_time=$(date +%s.%N)
+    local duration
+    duration=$(echo "$end_time - $start_time" | bc)
     echo "[build_all_arch:$arch] cleanup took $duration seconds"
 }
 
@@ -120,7 +123,7 @@ if [ "$parallel_builds" = "true" ]; then
     # Track overall success - fails if any build fails
     success=true
     for pid in "${pids[@]}"; do
-        if ! wait $pid; then
+        if ! wait "$pid"; then
             success=false
             echo "[build_all_arch] build process $pid failed!"
         fi

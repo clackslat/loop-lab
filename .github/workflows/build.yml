@@ -40,6 +40,31 @@ jobs:
       # access any of the repository files for building.
       # -----------------------------------------------------------------------
       - uses: actions/checkout@v4
+      
+      # -----------------------------------------------------------------------
+      # Step 1.5: Run ShellCheck on all shell scripts
+      # -----------------------------------------------------------------------
+      # This step ensures all shell scripts follow best practices and don't
+      # have potential bugs or issues.
+      # -----------------------------------------------------------------------
+      - name: Install ShellCheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+        
+      - name: Run ShellCheck
+        run: |
+          echo "Running ShellCheck on all shell scripts..."
+          
+          # Make the script finder executable
+          chmod +x hooks/find_shell_scripts.sh
+          
+          # Use our shared script finder to get a list of shell scripts
+          SHELL_SCRIPTS=$(hooks/find_shell_scripts.sh)
+          
+          # Run ShellCheck on all shell scripts
+          for script in $SHELL_SCRIPTS; do
+            echo "Checking $script..."
+            shellcheck -x "$script" || exit 1
+          done
 
       # -----------------------------------------------------------------------
       # Step 2: QEMU Setup for Multi-architecture Support
