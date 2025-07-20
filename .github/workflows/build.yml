@@ -18,7 +18,9 @@ name: Build Noble templates
 
 on:
   push:
-    branches: [ main ]  # Only trigger on pushes to main branch
+    branches: [ main ]  # Trigger on pushes to main branch
+  pull_request:
+    branches: [ main ]  # Also trigger on pull requests to main branch
 
 # Job Configuration
 # -----------------------------------------------------------------------------
