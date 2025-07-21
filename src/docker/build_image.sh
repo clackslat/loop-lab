@@ -97,7 +97,8 @@ truncate -s "$IMG_SIZE" "$IMG_PATH"
 # - --show: Print the assigned device name
 # - --partscan: Scan for partitions after setup
 if ! LOOPDEV=$(losetup --find --show --partscan "$IMG_PATH"); then
-  echo "[warn] No free loop devices; opening shell for inspection."
+  echo "[error] Failed to allocate loop device" >&2
+  exit 1
 fi
 
 # Ensure loop device is detached on script exit
