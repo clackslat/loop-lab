@@ -35,40 +35,21 @@ in_docker() {
   return 1
 }
 
-# Function to safely source scripts with environment awareness
-safe_source() {
-  local script_path="$1"
-  local script_name
-  script_name=$(basename "$script_path")
-  
-  if [ -f "$script_path" ]; then
-    # File exists, source it directly
-    # shellcheck disable=SC1090
-    . "$script_path"
-  elif in_docker; then
-    # We're in Docker but file doesn't exist - this shouldn't happen
-    echo "Error: Expected Docker script $script_path not found" >&2
-    exit 1
-  else
-    # We're running in a non-Docker environment (local or CI)
-    # Set up equivalent functionality for the specific script
-    case "$script_name" in
-      strict_trace.sh)
-        # Apply strict mode settings that would be in strict_trace.sh
-        set -euo pipefail
-        export PS4='[$(printf "%(%H:%M:%S)T" -1)] ${BASH_SOURCE##*/}:${LINENO}> '
-        ;;
-      *)
-        # For other scripts, just report they're being skipped
-        echo "Notice: $script_path not found, running in non-Docker environment" >&2
-        ;;
-    esac
-  fi
-}
-
-# Source the strict trace script with environment awareness
-safe_source "/usr/local/lib/strict_trace.sh"
-
+# Source scripts based on environment
+# shellcheck disable=SC1090,SC1091
+if in_docker; then
+  # 1) Source strict mode & tracing
+  . "/usr/local/lib/strict_trace.sh"
+  # 2) Source per-arch metadata
+  . "/usr/local/lib/arch_info.sh"
+else
+  # 1) Source strict mode & tracing
+  . "$(dirname "${BASH_SOURCE[0]}")/strict_trace.sh"
+  # 2) Source per-arch metadata
+  . "$(dirname "${BASH_SOURCE[0]}")/arch_info.sh"
+fi
+# Enable shellcheck info codes after the if/else statement
+# shellcheck enable=all
 # -----------------------------------------------------------------------------
 # Configuration Variables
 # -----------------------------------------------------------------------------
