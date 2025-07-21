@@ -1,5 +1,0 @@
-#!/usr/bin/env bash
-set -euo pipefail
-bash "$(dirname "$0")/build_all_arch.sh"
-echo "[hook] pre-push OK – pushing allowed."
-exit 0

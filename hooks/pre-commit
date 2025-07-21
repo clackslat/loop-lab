@@ -12,7 +12,7 @@ else
   source "$(dirname "$0")/find_shell_scripts.sh"
 # Use the function to get a list of shell scripts
 SHELL_SCRIPTS=$(find_shell_scripts .)
-
+echo "[hook] Found shell scripts: $SHELL_SCRIPTS"
 # Check if ShellCheck is installed
 if ! command -v shellcheck &> /dev/null; then
   echo "[hook] ShellCheck not found. Please install it: brew install shellcheck"
