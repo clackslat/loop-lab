@@ -139,7 +139,35 @@ trap 'umount "$MOUNT_POINT/dev/pts" "$MOUNT_POINT/dev" "$MOUNT_POINT/sys" "$MOUN
 chroot "$MOUNT_POINT" /bin/bash -euo pipefail <<EOF
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
-apt-get install -y shim-signed linux-image-generic
+apt-get install -y shim-signed linux-image-generic openssh-server sudo
+
+# Create maintenance user with sudo access
+useradd -m -s /bin/bash maintuser
+echo "maintuser:maintpass" | chpasswd
+usermod -aG sudo maintuser
+
+# Configure sshd to allow password authentication
+sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config
+sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
+
+# Enable autologin for maintuser on console
+mkdir -p /etc/systemd/system/getty@tty1.service.d/
+cat > /etc/systemd/system/getty@tty1.service.d/override.conf <<SYSTEMD
+[Service]
+ExecStart=
+ExecStart=-/sbin/agetty --autologin maintuser --noclear %I \$TERM
+SYSTEMD
+
+# Additional method for autologin (more reliable in some environments)
+mkdir -p /etc/systemd/system/serial-getty@ttyS0.service.d/
+cat > /etc/systemd/system/serial-getty@ttyS0.service.d/autologin.conf <<SERIALSYSTEMD
+[Service]
+ExecStart=
+ExecStart=-/sbin/agetty --autologin maintuser --keep-baud 115200,38400,9600 %I \$TERM
+SERIALSYSTEMD
+
+# Enable SSH service on boot
+systemctl enable ssh
 EOF
 
 # 11) Write fstab
