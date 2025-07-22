@@ -1,0 +1,124 @@
+#!/usr/bin/expect -f
+# -----------------------------------------------------------------------------
+# simple_boot_test.exp – Minimal boot test using expect
+# -----------------------------------------------------------------------------
+# This is a simplified version focused only on detecting successful boot
+# It doesn't try to run commands after login
+# -----------------------------------------------------------------------------
+
+# Enable visible output and configure behavior
+log_user 1
+exp_internal 0
+stty echo
+
+# Configuration with error handling for arguments
+if {$argc < 2} {
+    puts "ERROR: Missing required arguments"
+    puts "Usage: $argv0 <image-path> <arch>"
+    puts "  where <arch> is either 'x64' or 'aarch64'"
+    exit 2
+}
+
+set image_path [lindex $argv 0]
+set arch [lindex $argv 1]
+
+# Validate image path
+if {![file exists $image_path]} {
+    puts "ERROR: Image file not found: $image_path"
+    exit 2
+}
+
+# Configure timeout based on test environment
+# Use longer timeout for CI environments
+if {[info exists env(CI)]} {
+    set timeout 300
+} else {
+    set timeout 180
+}
+
+puts "====================================="
+puts "BOOT TEST - LOGIN PROMPT DETECTION"
+puts "Image: $image_path"
+puts "Architecture: $arch"
+puts "Timeout: $timeout seconds"
+puts "Started: [exec date]"
+puts "====================================="
+
+# Launch QEMU with appropriate parameters based on architecture
+if {$arch == "aarch64"} {
+    spawn qemu-system-aarch64 \
+        -machine virt,accel=hvf \
+        -cpu host -smp 4 -m 4096 \
+        -bios /opt/homebrew/opt/qemu/share/qemu/edk2-aarch64-code.fd \
+        -drive if=virtio,format=raw,file=$image_path \
+        -serial mon:stdio
+} else {
+    spawn qemu-system-x86_64 \
+        -accel tcg \
+        -machine q35 \
+        -cpu qemu64 \
+        -m 1024 \
+        -device virtio-rng-pci \
+        -nographic \
+        -no-reboot \
+        -drive if=pflash,format=raw,readonly=on,file=/opt/homebrew/share/qemu/edk2-x86_64-code.fd \
+        -drive if=virtio,format=raw,file=$image_path
+}
+
+# Simple expect loop focused primarily on detecting login prompt
+expect {
+    # The main success condition - login prompt detected
+    -re {maintuser@.*:~[$#]} {
+        puts "\n[exec date] >>> LOGIN PROMPT FOUND! Test PASSED!\n"
+        puts "Found prompt: $expect_out(0,string)"
+        exit 0
+    }
+    
+    # Alternative match for login prompt (based on log analysis)
+    -re {maintuser@[^:]+:~[$#]} {
+        puts "\n[exec date] >>> LOGIN PROMPT FOUND! Test PASSED!\n"
+        puts "Found prompt: $expect_out(0,string)"
+        exit 0
+    }
+    
+    # Track important boot milestones to help with debugging
+    "UEFI Interactive Shell" {
+        puts "\n[exec date] >>> UEFI Shell detected\n"
+        exp_continue
+    }
+    
+    "Starting sshd" {
+        puts "\n[exec date] >>> System services starting\n"
+        exp_continue
+    }
+    
+    "maintuser (automatic login)" {
+        puts "\n[exec date] >>> Auto-login detected\n"
+        exp_continue
+    }
+    
+    "Last login:" {
+        puts "\n[exec date] >>> Login messages detected\n"
+        exp_continue
+    }
+    
+    "Kernel panic" {
+        puts "\n[exec date] >>> CRITICAL: Kernel panic detected\n"
+        exit 1
+    }
+    
+    timeout {
+        puts "\n[exec date] >>> Test timed out waiting for login prompt\n"
+        exit 1
+    }
+    
+    eof {
+        puts "\n[exec date] >>> QEMU process ended without finding login prompt\n"
+        exit 1
+    }
+}
+
+# If we get here without matching any patterns and without timing out,
+# something unexpected happened, so we'll exit with an error code
+puts "\n[exec date] >>> Test execution reached unexpected end\n"
+exit 1
