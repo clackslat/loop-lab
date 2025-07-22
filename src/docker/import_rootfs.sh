@@ -97,11 +97,11 @@ mount -t devpts   devpts   "$MOUNT_POINT/dev/pts"
 # Setup cleanup trap for all mounts and loop device
 trap 'umount "$MOUNT_POINT/dev/pts" "$MOUNT_POINT/dev" "$MOUNT_POINT/sys" "$MOUNT_POINT/proc" "$MOUNT_POINT/boot/efi" "$MOUNT_POINT"; rmdir "$MOUNT_POINT"; losetup -d "$LOOPDEV"' EXIT
 
-# 10) Chroot & install kernel + shim
-chroot "$MOUNT_POINT" /bin/bash -euo pipefail <<EOF
+# 10) Chroot & install kernel + shim + iSCSI support
+chroot "$MOUNT_POINT" /bin/bash -euox pipefail <<EOF
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
-apt-get install -y shim-signed linux-image-generic openssh-server sudo
+apt-get install -y shim-signed linux-image-generic openssh-server sudo open-iscsi
 
 # Create maintenance user with sudo access
 useradd -m -s /bin/bash maintuser
@@ -119,7 +119,7 @@ cat > /etc/systemd/system/getty@tty1.service.d/override.conf <<SYSTEMD
 ExecStart=
 ExecStart=-/sbin/agetty --autologin maintuser --noclear %I \$TERM
 SYSTEMD
-
+echo "$ARCH"
 # Configure serial console autologin based on architecture
 case "$ARCH" in
   "aarch64")
@@ -144,6 +144,36 @@ esac
 
 # Enable SSH service on boot
 systemctl enable ssh
+
+# Configure iSCSI for boot support
+# Enable open-iscsi service
+systemctl enable open-iscsi
+
+# Configure iSCSI initiator name (will be overridden by boot parameters)
+echo "InitiatorName=iqn.1993-08.org.debian:01:$(hostname)" > /etc/iscsi/initiatorname.iscsi
+
+# Configure iscsid for automatic startup
+sed -i 's/^node.startup = manual/node.startup = automatic/' /etc/iscsi/iscsid.conf
+sed -i 's/^node.leading_login = No/node.leading_login = Yes/' /etc/iscsi/iscsid.conf
+
+# Add iSCSI modules to initramfs
+echo "# iSCSI boot support modules" >> /etc/initramfs-tools/modules
+echo "iscsi_tcp" >> /etc/initramfs-tools/modules
+echo "libiscsi" >> /etc/initramfs-tools/modules
+echo "scsi_transport_iscsi" >> /etc/initramfs-tools/modules
+echo "iscsi_boot_sysfs" >> /etc/initramfs-tools/modules
+
+# Ensure network drivers are included (common ones)
+echo "# Network drivers for iSCSI boot" >> /etc/initramfs-tools/modules
+echo "e1000e" >> /etc/initramfs-tools/modules
+echo "igb" >> /etc/initramfs-tools/modules
+echo "virtio_net" >> /etc/initramfs-tools/modules
+
+# Add iSCSI tools to initramfs
+echo "COPY_EXEC_LIST=\"/sbin/iscsiadm /sbin/iscsistart\"" >> /etc/initramfs-tools/conf.d/iscsi
+
+# Update initramfs to include iSCSI support
+update-initramfs -u -k all
 EOF
 
 # 11) Write fstab
@@ -193,11 +223,34 @@ case "$ARCH" in
     ;;
 esac
 ls -al "$MOUNT_POINT/boot/efi/EFI/BOOT/"
-# 16) **NEW** — write a startup.nsh so EDK2 auto-boots your stub
+# 16) Write a startup.nsh with iSCSI boot capability
 ROOT_PARTUUID=$(blkid -s PARTUUID -o value "$ROOT")
-CMDLINE="root=PARTUUID=${ROOT_PARTUUID} rootfstype=ext4 rw rootwait ${CONSOLE_FLAGS} console=tty0 earlyprintk=efi,keep ignore_loglevel loglevel=8 debug initcall_debug efi=debug systemd.log_level=debug systemd.log_target=console"
+
+# Base kernel command line with console and debugging
+BASE_CMDLINE="rootfstype=ext4 rw rootwait ${CONSOLE_FLAGS} console=tty0 earlyprintk=efi,keep ignore_loglevel loglevel=8 debug initcall_debug efi=debug systemd.log_level=debug systemd.log_target=console"
+
+# iSCSI boot parameters (commented examples for easy enabling)
+ISCSI_PARAMS="# iSCSI boot parameters (uncomment and modify as needed):
+# ip=dhcp
+# iscsi_initiator=iqn.1993-08.org.debian:01:initiator
+# iscsi_target_name=iqn.2023-01.com.example:target
+# iscsi_target_ip=192.168.1.100
+# iscsi_target_port=3260
+# iscsi_lun=1
+# root=UUID=\${ROOT_UUID} (for iSCSI root)
+# rd.iscsi.initiator=iqn.1993-08.org.debian:01:initiator"
+
 cat > "$MOUNT_POINT/boot/efi/EFI/BOOT/startup.nsh" <<EOF
 @echo -off
+echo "Loop-lab EFI Boot Script - iSCSI Ready"
+echo "======================================"
+echo "This image supports both local and iSCSI boot modes"
+echo ""
+echo "For local boot (current): Uses PARTUUID=${ROOT_PARTUUID}"
+echo "For iSCSI boot: Modify kernel parameters below"
+echo ""
+${ISCSI_PARAMS}
+echo ""
 echo "Checking mapped devices..."
 map -r
 echo "Entering ESP filesystem..."
@@ -205,12 +258,34 @@ FS0:
 cd EFI\BOOT
 echo "Current directory contents:"
 ls
-echo "Command line:"
-echo "${KIMG} initrd=\EFI\BOOT\\${IIMG} ${CMDLINE}"
+echo ""
+echo "Booting with local root (modify for iSCSI):"
+echo "Command line: ${KIMG} initrd=\EFI\BOOT\\${IIMG} root=PARTUUID=${ROOT_PARTUUID} ${BASE_CMDLINE}"
+echo ""
 echo "Loading kernel..."
-${KIMG} initrd=\EFI\BOOT\\${IIMG} ${CMDLINE}
+${KIMG} initrd=\EFI\BOOT\\${IIMG} root=PARTUUID=${ROOT_PARTUUID} ${BASE_CMDLINE}
 EOF
 chmod 0644 "$MOUNT_POINT/boot/efi/EFI/BOOT/startup.nsh"
+
+# Create an iSCSI boot script template
+cat > "$MOUNT_POINT/boot/efi/EFI/BOOT/iscsi-boot.nsh" <<EOF
+@echo -off
+echo "iSCSI Boot Script Template"
+echo "=========================="
+echo "Configure the variables below for your iSCSI environment"
+echo ""
+echo "Setting up for iSCSI boot..."
+echo ""
+echo "Example iSCSI boot command:"
+echo "${KIMG} initrd=\EFI\BOOT\\${IIMG} ip=dhcp iscsi_initiator=iqn.1993-08.org.debian:01:initiator iscsi_target_name=iqn.2023-01.com.example:target iscsi_target_ip=192.168.1.100 iscsi_target_port=3260 iscsi_lun=1 root=/dev/sda2 ${BASE_CMDLINE}"
+echo ""
+echo "Modify this script with your iSCSI target details and uncomment the line below:"
+echo "# ${KIMG} initrd=\EFI\BOOT\\${IIMG} [your-iscsi-parameters] ${BASE_CMDLINE}"
+echo ""
+echo "Falling back to local boot..."
+${KIMG} initrd=\EFI\BOOT\\${IIMG} root=PARTUUID=${ROOT_PARTUUID} ${BASE_CMDLINE}
+EOF
+chmod 0644 "$MOUNT_POINT/boot/efi/EFI/BOOT/iscsi-boot.nsh"
 ls -al "$MOUNT_POINT/boot/efi/EFI/BOOT/"
 cat "$MOUNT_POINT/boot/efi/EFI/BOOT/startup.nsh"
 
@@ -223,4 +298,8 @@ cat "$MOUNT_POINT/boot/efi/EFI/BOOT/startup.nsh"
 # umount "$MOUNT_POINT"
 # losetup -d "$LOOPDEV"
 
-echo "[✓] import_rootfs complete: rootfs unpacked, kernel+initrd staged, EFI stub fixed"
+echo "[✓] import_rootfs complete: rootfs unpacked, kernel+initrd staged, EFI stub fixed, iSCSI support enabled"
+echo "    - Local boot: startup.nsh (default)"
+echo "    - iSCSI boot: iscsi-boot.nsh (template)"
+echo "    - iSCSI modules and tools included in initramfs"
+echo "    - open-iscsi service enabled for runtime iSCSI operations"
