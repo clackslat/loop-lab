@@ -112,7 +112,7 @@ usermod -aG sudo maintuser
 sed -i 's/#PasswordAuthentication yes/PasswordAuthentication yes/' /etc/ssh/sshd_config
 sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
 
-# Enable autologin for maintuser on console
+# Enable autologin for maintuser on console (architecture-specific)
 mkdir -p /etc/systemd/system/getty@tty1.service.d/
 cat > /etc/systemd/system/getty@tty1.service.d/override.conf <<SYSTEMD
 [Service]
@@ -120,13 +120,27 @@ ExecStart=
 ExecStart=-/sbin/agetty --autologin maintuser --noclear %I \$TERM
 SYSTEMD
 
-# Additional method for autologin (more reliable in some environments)
-mkdir -p /etc/systemd/system/serial-getty@ttyS0.service.d/
-cat > /etc/systemd/system/serial-getty@ttyS0.service.d/autologin.conf <<SERIALSYSTEMD
+# Configure serial console autologin based on architecture
+case "$ARCH" in
+  "aarch64")
+    # ARM64 uses ttyAMA0 for PL011 UART
+    mkdir -p /etc/systemd/system/serial-getty@ttyAMA0.service.d/
+    cat > /etc/systemd/system/serial-getty@ttyAMA0.service.d/autologin.conf <<ARMSYSTEMD
 [Service]
 ExecStart=
 ExecStart=-/sbin/agetty --autologin maintuser --keep-baud 115200,38400,9600 %I \$TERM
-SERIALSYSTEMD
+ARMSYSTEMD
+    ;;
+  "x64")
+    # x86_64 uses ttyS0 for 16550 UART
+    mkdir -p /etc/systemd/system/serial-getty@ttyS0.service.d/
+    cat > /etc/systemd/system/serial-getty@ttyS0.service.d/autologin.conf <<X64SYSTEMD
+[Service]
+ExecStart=
+ExecStart=-/sbin/agetty --autologin maintuser --keep-baud 115200,38400,9600 %I \$TERM
+X64SYSTEMD
+    ;;
+esac
 
 # Enable SSH service on boot
 systemctl enable ssh
