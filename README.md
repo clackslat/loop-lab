@@ -9,7 +9,7 @@ bash src/docker/run_in_docker.sh
 ```
 ```mermaid
 graph TD
-    subgraph Build-time \(your laptop/CI\)
+    subgraph Build-time  - laptop or CI
         A[loop-lab container] -->|Step 0/1| B[template.img: ESP+root]
         B -->|Step 2| C[Populated OS image]
     end
