@@ -10,3 +10,6 @@ cache/
 # IDE/Editor directories
 .clj-kondo/
 .lsp/
+
+# EDK2 variable files
+edk2-vars-*.fd
