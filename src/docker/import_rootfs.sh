@@ -172,6 +172,9 @@ echo "virtio_net" >> /etc/initramfs-tools/modules
 # Add iSCSI tools to initramfs
 echo "COPY_EXEC_LIST=\"/sbin/iscsiadm /sbin/iscsistart\"" >> /etc/initramfs-tools/conf.d/iscsi
 
+# Configure root filesystem type to avoid fsck hook warnings
+echo "FSTYPE=ext4" >> /etc/initramfs-tools/conf.d/fstype
+
 # Update initramfs to include iSCSI support
 update-initramfs -u -k all
 EOF

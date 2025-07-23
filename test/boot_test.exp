@@ -1,0 +1,232 @@
+#!/usr/bin/expect -f
+# -----------------------------------------------------------------------------
+# boot_test.exp – Automated boot test using expect
+# -----------------------------------------------------------------------------
+# This expect script automates QEMU boot testing for the loop-lab project
+# It handles both x64 and aarch64 architectures
+# 
+# Usage:
+#   ./boot_test.exp <image_path> <architecture>
+#   Example: ./boot_test.exp ../template-x64.img x64
+# -----------------------------------------------------------------------------
+
+# Enable debugging output to see what expect is matching
+log_user 1
+exp_internal 1
+stty echo
+  
+# Print debugging information
+puts "====================================="
+puts "DEBUG MODE ENABLED"
+puts "====================================="
+
+# Set timeouts and arguments
+set timeout 180  # Reduce timeout to 3 minutes
+set image_path [lindex $argv 0]
+set arch [lindex $argv 1]
+
+puts "====================================="
+puts "EXPECT SCRIPT STARTED"
+puts "Image path: $image_path"
+puts "Architecture: $arch"
+puts "====================================="
+
+if {$arch == "aarch64"} {
+    puts "====================================="
+    puts "LAUNCHING AARCH64 QEMU WITH COMMAND:"
+    puts "qemu-system-aarch64 -machine virt,accel=hvf -cpu host -smp 4 -m 4096 -bios /opt/homebrew/opt/qemu/share/qemu/edk2-aarch64-code.fd -drive if=virtio,format=raw,file=$image_path -serial mon:stdio"
+    puts "====================================="
+    
+    spawn qemu-system-aarch64 \
+        -machine virt,accel=hvf \
+        -cpu host -smp 4 -m 4096 \
+        -bios /opt/homebrew/opt/qemu/share/qemu/edk2-aarch64-code.fd \
+        -drive if=virtio,format=raw,file=$image_path \
+        -serial mon:stdio
+} else {
+    puts "====================================="
+    puts "LAUNCHING X86_64 QEMU WITH COMMAND:"
+    puts "qemu-system-x86_64 -accel tcg -machine q35 -cpu qemu64 -m 1024 -device virtio-rng-pci -nographic -no-reboot -drive if=pflash,format=raw,readonly=on,file=/opt/homebrew/share/qemu/edk2-x86_64-code.fd -drive if=virtio,format=raw,file=$image_path"
+    puts "====================================="
+    
+    spawn qemu-system-x86_64 \
+        -accel tcg \
+        -machine q35 \
+        -cpu qemu64 \
+        -m 1024 \
+        -device virtio-rng-pci \
+        -nographic \
+        -no-reboot \
+        -drive if=pflash,format=raw,readonly=on,file=/opt/homebrew/share/qemu/edk2-x86_64-code.fd \
+        -drive if=virtio,format=raw,file=$image_path
+}
+
+# Variables to track progress
+set boot_started 0
+set uefi_shell_reached 0
+set kernel_loading 0
+set login_reached 0
+set tests_passed 0
+
+# Handle different boot stages with simple clear output
+expect {
+    # UEFI Shell startup - This is the first stage of EFI boot
+    "UEFI Interactive Shell" {
+        puts "\n===== STAGE 1: UEFI Shell detected =====\n"
+        puts "The UEFI firmware has loaded and started the EFI shell"
+        set uefi_shell_reached 1
+        exp_continue
+    }
+    
+    # Our boot script banner - UEFI shell runs our startup.nsh script
+    "Loop-lab EFI Boot Script" {
+        puts "\n===== STAGE 2: EFI boot script running =====\n"
+        puts "The startup.nsh script is executing"
+        set boot_started 1
+        exp_continue
+    }
+    
+    # iSCSI Ready message - Our script confirms iSCSI support
+    "iSCSI Ready" {
+        puts "\n===== STAGE 3: iSCSI capabilities confirmed =====\n"
+        puts "iSCSI support verified in the image"
+        exp_continue
+    }
+    
+    # Kernel loading - EFI starts loading the Linux kernel
+    "Loading Linux" {
+        puts "\n===== STAGE 4: Linux kernel loading =====\n"
+        puts "EFI boot loader is loading the Linux kernel"
+        set kernel_loading 1
+        exp_continue
+    }
+    
+    # Kernel boot messages - Kernel starts executing
+    "Linux version" {
+        puts "\n===== STAGE 5: Linux kernel booting =====\n"
+        puts "The Linux kernel has started executing"
+        puts "Waiting for login prompt..."
+        exp_continue
+    }
+    
+    # Login prompt detection
+    "ubuntu login:" {
+        puts "\n===== STAGE 6: Login prompt reached =====\n"
+        puts "Detected login prompt with autologin"
+        exp_continue
+    }
+    
+    # Automatic login detection - using exact string from output
+    "maintuser (automatic login)" {
+        puts "\n===== STAGE 6: Auto-login detected =====\n"
+        puts "System is using automatic login for maintuser"
+        exp_continue
+    }
+    
+    # Welcome message detection
+    "Welcome to Ubuntu" {
+        puts "\n===== Ubuntu welcome message detected =====\n" 
+        puts "Getting closer to login prompt..."
+        exp_continue
+    }
+    
+    # Shell prompt after login - System is ready - using both patterns
+    "maintuser@ubuntu:~$" {
+        puts "\n===== STAGE 7: Login successful (exact match) =====\n"
+        puts "System is fully operational"
+        set login_reached 1
+        incr tests_passed
+        
+        # Mark success but don't try to interact further
+        puts "\n===== TEST SUCCESSFUL - NOT ATTEMPTING SHUTDOWN =====\n"
+        puts "Detected login prompt successfully!"
+        puts "Press Ctrl+C to exit QEMU manually"
+        
+        # Just wait for timeout or manual exit
+        # No shutdown attempts to avoid getting stuck
+    }
+    
+    # Alternative prompt pattern
+    -re {[Mm]aintuser@.*[$#]} {
+        puts "\n===== STAGE 7: Login successful (regex match) =====\n"
+        puts "System is fully operational"
+        set login_reached 1
+        incr tests_passed
+        
+        # Mark success but don't try to interact further
+        puts "\n===== TEST SUCCESSFUL - NOT ATTEMPTING SHUTDOWN =====\n"
+        puts "Detected login prompt successfully!"
+        puts "Press Ctrl+C to exit QEMU manually"
+        
+        # Just wait for timeout or manual exit
+        # No shutdown attempts to avoid getting stuck
+    }
+    
+    # Error conditions
+    "Kernel panic" {
+        puts "\n===== ERROR: Kernel panic detected =====\n"
+        exit 1
+    }
+    
+    "Boot failed" {
+        puts "\n===== ERROR: Boot failure detected =====\n"
+        exit 1
+    }
+    
+    # Timeout - The script waited too long without matching any expected patterns
+    timeout {
+        puts "\n===== ERROR: Test timeout after 3 minutes =====\n"
+        
+        # More verbose diagnostics
+        puts "PROGRESS TRACKING:"
+        puts "  UEFI Shell reached: [expr {$uefi_shell_reached ? "YES" : "NO"}]"
+        puts "  Boot script started: [expr {$boot_started ? "YES" : "NO"}]"
+        puts "  Kernel loading started: [expr {$kernel_loading ? "YES" : "NO"}]"
+        puts "  Login reached: [expr {$login_reached ? "YES" : "NO"}]"
+        
+        puts "\nLast stage completed:"
+        if {$login_reached == 1} {
+            puts "Login prompt was reached but subsequent operations timed out"
+        } elseif {$kernel_loading == 1} {
+            puts "Kernel started loading but login wasn't reached"
+            puts "Check kernel parameters and console configuration"
+        } elseif {$boot_started == 1} {
+            puts "Boot script ran but kernel didn't start"
+            puts "Check if Linux kernel path is correct in startup.nsh"
+        } elseif {$uefi_shell_reached == 1} {
+            puts "UEFI shell was reached but boot script didn't start"
+            puts "Check if startup.nsh exists in the ESP partition"
+        } else {
+            puts "Boot didn't reach UEFI shell"
+            puts "Check UEFI firmware and QEMU parameters"
+        }
+        exit 1
+    }
+    
+    # End of file (QEMU closed) - The QEMU process ended
+    eof {
+        puts "\n===== QEMU session ended =====\n"
+        if {$login_reached == 1} {
+            puts "SUCCESS: Test completed successfully!"
+            puts "\n===== Boot test PASSED =====\n"
+            exit 0
+        } else {
+            puts "ERROR: QEMU ended unexpectedly before login"
+            if {$uefi_shell_reached == 1} {
+                puts "UEFI shell was reached but login wasn't completed"
+            } elseif {$kernel_loading == 1} {
+                puts "Kernel started loading but login wasn't completed"
+            } elseif {$boot_started == 1} {
+                puts "Boot script ran but kernel didn't start"
+            } else {
+                puts "Boot didn't even reach UEFI shell"
+            }
+            puts "\n===== Boot test FAILED =====\n"
+            exit 1
+        }
+    }
+}
+
+# Should not reach here
+puts "\nERROR: Unexpected end of expect script"
+exit 1

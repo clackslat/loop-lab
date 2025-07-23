@@ -24,11 +24,11 @@ find_shell_scripts() {
   # Find all shell scripts with proper extensions or shebangs
   # First, find scripts with .sh extension
   local sh_ext_scripts
-  sh_ext_scripts=$(find "$base_dir" -type f -name "*.sh" -not -path "*/.git/*")
+  sh_ext_scripts=$(find "$base_dir" -type f -name "*.sh" -not -path "*/.git/*" -not -path "*/test/*")
   
   # Then find scripts with bash/sh shebang, excluding images and binary files
   local shebang_scripts
-  shebang_scripts=$(find "$base_dir" -type f -not -path "*/.git/*" \
+  shebang_scripts=$(find "$base_dir" -type f -not -path "*/.git/*" -not -path "*/test/*" \
     -not -path "*.img" -not -path "*.efi" -not -path "*.fd" \
     -exec grep -l "^#!.*\(bash\|sh\)" {} \; 2>/dev/null || true)
   

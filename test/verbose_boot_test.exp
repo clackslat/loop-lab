@@ -1,0 +1,99 @@
+#!/usr/bin/env expect
+# Simplified test script for ARM64 boot with verbose output
+
+# Set timeouts and variables
+set timeout 300
+set image_path "/Users/gregorypaskar/lab/step0-loopdev/loop-lab/template-aarch64.img"
+
+puts "\n===== TEST: VERBOSE BOOT TEST WITH PAUSES =====\n"
+
+# Start QEMU for ARM64 using the working command
+spawn qemu-system-aarch64 \
+    -machine virt,accel=hvf \
+    -cpu host -smp 4 -m 4096 \
+    -bios /opt/homebrew/opt/qemu/share/qemu/edk2-aarch64-code.fd \
+    -drive if=virtio,format=raw,file=$image_path \
+    -serial mon:stdio
+
+# Variables to track progress
+set boot_started 0
+set uefi_shell_reached 0
+set kernel_loading 0
+set login_reached 0
+
+# Handle different boot stages
+expect {
+    "UEFI Interactive Shell" {
+        puts "\n===== UEFI Shell detected! =====\n"
+        puts "Pausing for 10 seconds..."
+        sleep 10
+        set uefi_shell_reached 1
+        exp_continue
+    }
+    
+    "Loop-lab EFI Boot Script" {
+        puts "\n===== Boot script running! =====\n"
+        puts "Pausing for 10 seconds..."
+        sleep 10
+        set boot_started 1
+        exp_continue
+    }
+    
+    "iSCSI Ready" {
+        puts "\n===== iSCSI support confirmed! =====\n"
+        puts "Pausing for 10 seconds..."
+        sleep 10
+        exp_continue
+    }
+    
+    "Loading Linux" {
+        puts "\n===== Kernel loading started! =====\n"
+        puts "Pausing for 10 seconds..."
+        sleep 10
+        set kernel_loading 1
+        exp_continue
+    }
+    
+    "Linux version" {
+        puts "\n===== Kernel boot started! =====\n"
+        puts "Pausing for 10 seconds..."
+        sleep 10
+        exp_continue
+    }
+    
+    "login:" {
+        puts "\n===== Login prompt reached! =====\n"
+        puts "Pausing for 10 seconds before login..."
+        sleep 10
+        set login_reached 1
+        
+        send "maintuser\r"
+        expect {
+            "*$" {
+                puts "\n===== Login successful! =====\n"
+                puts "Pausing for 10 seconds before shutdown..."
+                sleep 10
+                
+                send "sudo shutdown -h now\r"
+                expect {
+                    "Power down" {
+                        puts "\n===== Clean shutdown! =====\n"
+                    }
+                    eof {
+                        puts "\n===== System shut down! =====\n"
+                    }
+                }
+            }
+        }
+    }
+    
+    eof {
+        if {$login_reached == 1} {
+            puts "\n===== TEST COMPLETED SUCCESSFULLY! =====\n"
+        } else {
+            puts "\n===== TEST FAILED! =====\n"
+        }
+    }
+}
+
+puts "\n===== TEST ENDED =====\n"

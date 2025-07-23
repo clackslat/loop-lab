@@ -1,0 +1,52 @@
+#!/usr/bin/expect -f
+# Simple expect script to test login prompt pattern against a log file
+
+# Configuration
+set log_file "/tmp/test_prompt.txt"
+
+# Read the log file
+set f [open $log_file]
+set log_content [read $f]
+close $f
+
+puts "====================================="
+puts "TESTING LOGIN PROMPT IN LOG FILE"
+puts "File: $log_file"
+puts "====================================="
+
+# Extract last 20 lines to focus on the prompt area
+set lines [split $log_content "\n"]
+set last_lines [lrange $lines end-20 end]
+set last_content [join $last_lines "\n"]
+
+puts "Last few lines from log:"
+puts "------------------"
+puts $last_content
+puts "------------------"
+
+# Focus only on login prompt detection
+# Use braces {} instead of quotes to avoid TCL interpretation issues with special chars
+if {[regexp {maintuser@.*:~[$#]} $log_content match]} {
+    puts "\n✅ LOGIN PROMPT DETECTED: $match"
+    puts "\nTest PASSED - Login prompt found"
+    exit 0
+} elseif {[regexp {maintuser@[^:]+:~[$#]} $log_content match]} {
+    puts "\n✅ LOGIN PROMPT DETECTED (alt pattern): $match"
+    puts "\nTest PASSED - Login prompt found"
+    exit 0
+} else {
+    puts "\n❌ NO LOGIN PROMPT FOUND"
+    
+    # Check for autologin message as intermediate step
+    if {[regexp "maintuser \\(automatic login\\)" $log_content]} {
+        puts "   (But 'maintuser (automatic login)' was found)"
+    }
+    
+    # Check for a more basic pattern
+    if {[regexp {maintuser@} $log_content]} {
+        puts "   (But 'maintuser@' was found - partial match)"
+    }
+    
+    puts "\nTest FAILED - No login prompt detected"
+    exit 1
+}
