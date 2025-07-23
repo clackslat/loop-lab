@@ -3,7 +3,7 @@
 # run_in_docker.sh – entry point for building the loop-lab disk images
 #
 # 1. loads strict mode + tracing      (strict_trace.sh)
-# 2. loads per-arch metadata         (arch_info.sh)
+# 2. loads external resources config  (external_resources.sh via load_scripts.sh)
 # 3. (re)builds the disk-tools Docker
 # 4. runs the build stages:
 #    - build_image.sh: create and partition disk image
@@ -16,36 +16,16 @@
 #==============================================================================
 
 # -----------------------------------------------------------------------------
-# Environment Detection and Script Sourcing
+# Script Sourcing
 # -----------------------------------------------------------------------------
-# Function to detect Docker environment
-in_docker() {
-  # Check for .dockerenv file
-  [ -f /.dockerenv ] && return 0
-  # Check for docker in cgroup
-  grep -q docker /proc/self/cgroup 2>/dev/null && return 0
-  # Not in Docker
-  return 1
-}
+# This script always runs on the host, so use local paths
+# Load common scripts from same directory
+. "$(dirname "${BASH_SOURCE[0]}")/load_scripts.sh"
 
-# Source scripts based on environment
-# shellcheck disable=SC1090,SC1091
-if in_docker; then
-  # 1) Source strict mode & tracing
-  . "/usr/local/lib/strict_trace.sh"
-  # 2) Source per-arch metadata
-  . "/usr/local/lib/arch_info.sh"
-else
-  # 1) Source strict mode & tracing
-  . "$(dirname "${BASH_SOURCE[0]}")/strict_trace.sh"
-  # 2) Source per-arch metadata
-  . "$(dirname "${BASH_SOURCE[0]}")/arch_info.sh"
-fi
-# Enable shellcheck info codes after the if/else statement
-# shellcheck enable=all
 ARCH=${ARCH:-aarch64}
 
-# sanity-check
+# sanity-check using external resources
+ARCH_LIST=$(get_arch_list)
 # shellcheck disable=SC2076
 # Note: Quoting right-hand side is intentional to match the ARCH string literally, not as regex
 if [[ ! " ${ARCH_LIST} " =~ " ${ARCH} " ]]; then
@@ -53,20 +33,8 @@ if [[ ! " ${ARCH_LIST} " =~ " ${ARCH} " ]]; then
   exit 1
 fi
 
-# Get the UEFI ID for this architecture (e.g., X64 or AA64)
-# Use a safer approach with direct mapping for simplicity
-case "$ARCH" in
-  x64)
-    UEFI_ID="X64"
-    ;;
-  aarch64)
-    UEFI_ID="AA64"
-    ;;
-  *)
-    echo "ERROR: Unknown architecture '$ARCH', cannot determine UEFI_ID" >&2
-    exit 1
-    ;;
-esac
+# Get the UEFI ID for this architecture using external resources
+UEFI_ID=$(get_uefi_id "$ARCH")
 
 # Export UEFI_ID for use in other scripts
 export UEFI_ID

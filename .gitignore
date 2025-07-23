@@ -2,3 +2,11 @@
 setup.log
 build_template.log
 post-commit.log
+
+# Build outputs and cache
+build/
+cache/
+
+# IDE/Editor directories
+.clj-kondo/
+.lsp/

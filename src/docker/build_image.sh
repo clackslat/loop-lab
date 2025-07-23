@@ -20,35 +20,12 @@
 # =============================================================================
 
 # -----------------------------------------------------------------------------
-# Environment Detection and Script Sourcing
+# Script Sourcing
 # -----------------------------------------------------------------------------
-# Determine if we're running inside Docker, under ShellCheck, or in local environment
-# This approach handles different runtime environments gracefully
-
-# Function to detect Docker environment
-in_docker() {
-  # Check for .dockerenv file
-  [ -f /.dockerenv ] && return 0
-  # Check for docker in cgroup
-  grep -q docker /proc/self/cgroup 2>/dev/null && return 0
-  # Not in Docker
-  return 1
-}
-
-# Source scripts based on environment
+# Source required scripts
 # shellcheck disable=SC1090,SC1091
-if in_docker; then
-  # 1) Source strict mode & tracing
-  . "/usr/local/lib/strict_trace.sh"
-  # 2) Source per-arch metadata
-  . "/usr/local/lib/arch_info.sh"
-else
-  # 1) Source strict mode & tracing
-  . "$(dirname "${BASH_SOURCE[0]}")/strict_trace.sh"
-  # 2) Source per-arch metadata
-  . "$(dirname "${BASH_SOURCE[0]}")/arch_info.sh"
-fi
-# Enable shellcheck info codes after the if/else statement
+. "/usr/local/lib/load_scripts.sh"
+# Enable shellcheck info codes after sourcing
 # shellcheck enable=all
 # -----------------------------------------------------------------------------
 # Configuration Variables
@@ -57,10 +34,16 @@ fi
 ARCH=${ARCH:-x64}
 
 # Image path and size configuration
-# - Creates architecture-specific image names (e.g., template-x64.img)
-# - Default image size of 10G can be overridden via IMG_SIZE environment variable
-IMG_PATH=template-${ARCH}.img
+# - Both values are set by the Makefile via environment variables
+# - Makefile gets values from EDN configuration via Babashka script
+IMG_PATH="${IMG_PATH}"
 IMG_SIZE="${IMG_SIZE:-10G}"
+
+# Validate that we got a valid image path
+if [[ -z "$IMG_PATH" ]]; then
+    echo "[error] IMG_PATH environment variable not set" >&2
+    exit 1
+fi
 
 
 # -----------------------------------------------------------------------------
@@ -106,7 +89,8 @@ sgdisk -n1:0:+512M -t1:EF00 -c1:EFI  "$LOOPDEV"
 sgdisk -n2:0:0      -t2:8300 -c2:root "$LOOPDEV"
 
 # Note: --partscan in losetup already triggers partition device creation
-
+# Give the system a moment to create partition devices
+sleep 2
 
 # -----------------------------------------------------------------------------
 # Filesystem Creation

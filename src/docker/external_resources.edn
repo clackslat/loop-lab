@@ -1,0 +1,124 @@
+;; =============================================================================
+;; External Resources Configuration (external_resources.edn)
+;; =============================================================================
+;; Purpose:
+;;   Centralizes all external download URLs and resource configuration.
+;;   This file serves as a single dependency point for cache invalidation
+;;   and makes it easy to update external resource versions.
+;;
+;; Cache Dependencies:
+;;   - Changes to Ubuntu rootfs URLs invalidate base system cache
+;;   - Changes to UEFI URLs invalidate UEFI shell cache
+;;   - Changes to any URL may require Docker image rebuild
+;; =============================================================================
+
+{:meta {:description "External resources configuration for loop-lab"
+        :version "2.0.0"
+        :last-updated "2025-01-23"}
+
+ ;; Build Configuration
+ ;; Defines build-time paths and settings
+ :build {:output-dir "/output"
+         :cache-dir "/cache"
+         :work-dir "/work"
+         :image-size "10G"
+         :image-name-template "template-{arch}.img"}
+
+ ;; Architecture-First Configuration
+ ;; Each architecture contains all its specific configuration
+ ;; 
+ ;; CACHE LOOKUP PATTERN:
+ ;; 1. User provides target architecture (x64, aarch64)
+ ;; 2. Check if resources are cached under :boot and :os sections
+ ;; 3. Find resources using metadata-as-keys (name + version)
+ ;; 4. Cache file location is in [:cache :path-to-initial]
+ ;; 
+ ;; STRUCTURE:
+ ;; :arch -> :boot/:os -> {metadata-map resource-map}
+ ;; where metadata-map = {:name "..." :version {...}}
+ ;; and resource-map = {:cache {:path-to-initial "..."} :source {...}}
+:x64 {:boot {:shell {{:vendor {:nick-name "pbatard"
+                               :official-name "Pete Batard"}
+                      :name "UEFI Shell"         ;; <- KEY: Resource name
+                      :version {:major 25
+                                :minor 1
+                                :name "25H1"}}   ;; <- KEY: Version identifier
+                      {:meta {:arch-name "X64"}
+                       :source {:url "https://github.com/pbatard/UEFI-Shell/releases/download/25H1/shellx64.efi"
+                                :filename "shellx64.efi"}
+                       :cache {:filename "shell64.efi"
+                               :path-to-initial "build/cache/x64/boot/shell/shell64.efi"           ;; <- CACHE: Primary cache location
+                               :runtime-path "build/cache/x64/boot/shell/runtime/shell64.efi"}}}} ;; <- CACHE: Runtime cache location
+       
+                  :os {{:vendor {:nick-name "Canonical"
+                                 :official-name "Canonical Ltd."}
+                        :distro "ubuntu"
+                        :variant "minimal"
+                        :name "Ubuntu Minimal"     ;; <- KEY: Resource name
+                        :release "noble"
+                        :version {:major 24
+                                  :minor 4
+                                  :name "24.04"}}  ;; <- KEY: Version identifier
+                       {:meta {:arch-name "amd64"}
+                        :source {:url "https://cloud-images.ubuntu.com/minimal/releases/noble/release/ubuntu-24.04-minimal-cloudimg-amd64-root.tar.xz"
+                                :filename "ubuntu-24.04-minimal-cloudimg-amd64-root.tar.xz"}
+        :cache {:path-to-initial "build/cache/x64/os/ubuntu/minimal/24.04/ubuntu-24.04-minimal-cloudimg-amd64-root.tar.xz"                     ;; <- CACHE: Primary cache location  
+                :runtime-path "build/cache/x64/os/ubuntu/minimal/24.04/runtime/base-system.tar.xz"} ;; <- CACHE: Runtime cache location
+                        :packages {:base-system ["shim-signed" "linux-image-generic" "openssh-server" "sudo" "open-iscsi"]
+                                   :build-tools []
+                                   :runtime-tools []}}}}
+
+:aarch64 {:boot {:shell {{:vendor {:nick-name "pbatard"
+                                   :official-name "Pete Batard"}
+                          :name "UEFI Shell"
+                          :version {:major 25
+                                    :minor 1
+                                    :name "25H1"}}
+                          {:meta {:arch-name "AA64"}
+                           :source {:url "https://github.com/pbatard/UEFI-Shell/releases/download/25H1/shellaa64.efi"
+                                    :filename "shellaa64.efi"}
+                           :cache {:filename "shellaa64.efi"
+                                   :path-to-initial "build/cache/aarch64/boot/shell/shellaa64.efi"
+                                   :runtime-path "build/cache/aarch64/boot/shell/runtime/shellaa64.efi"}}}}
+            :os {{:vendor {:nick-name "Canonical"
+                                    :official-name "Canonical Ltd."}
+                          :distro "ubuntu"
+                          :variant "minimal"
+                          :name "Ubuntu Minimal"
+                          :release "noble"
+                          :version {:major 24
+                                    :minor 4
+                                    :name "24.04"}}
+                         {:meta {:arch-name "arm64"}
+                          :source {:url "https://cloud-images.ubuntu.com/minimal/releases/noble/release/ubuntu-24.04-minimal-cloudimg-arm64-root.tar.xz"
+                                  :filename "ubuntu-24.04-minimal-cloudimg-arm64-root.tar.xz"}
+                         :cache {:path-to-initial "build/cache/aarch64/os/ubuntu/minimal/24.04/ubuntu-24.04-minimal-cloudimg-arm64-root.tar.xz"
+                                 :runtime-path "build/cache/aarch64/os/ubuntu/minimal/24.04/runtime/base-system.tar.xz"}
+                          :packages {:base-system ["shim-signed" "linux-image-generic" "openssh-server" "sudo" "open-iscsi"]
+                                     :build-tools []
+                                     :runtime-tools []}}}}
+
+ ;; Future external resources can be added here:
+ ;; :firmware {...}
+ ;; :kernel-modules {...}
+ ;; :additional-tools {...}
+
+ ;; =============================================================================
+ ;; CACHE CHECKING LOGIC FOR BABASHKA SCRIPT:
+ ;; =============================================================================
+ ;; 
+ ;; 1. User provides architecture (e.g., "x64", "aarch64")
+ ;; 2. Script looks up [:arch :boot :shell] and [:arch :os] 
+ ;; 3. For each resource type:
+ ;;    - Find resource using metadata keys (:name and :version :name)
+ ;;    - Check if cache file exists at [:cache :path-to-initial]
+ ;;    - Return cache status and paths
+ ;;
+ ;; Example cache check for x64 UEFI shell:
+ ;;   Path: [:x64 :boot :shell {metadata} :cache :path-to-initial]
+ ;;   Result: "build/cache/x64/boot/shell/shell64.efi"
+ ;;
+ ;; Example cache check for x64 Ubuntu OS:
+ ;;   Path: [:x64 :os {metadata} :cache :path-to-initial] 
+ ;;   Result: "build/cache/x64/os/ubuntu/minimal/24.04/ubuntu-24.04-minimal-cloudimg-amd64-root.tar.xz"
+}

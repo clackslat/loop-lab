@@ -7,52 +7,15 @@
 # -----------------------------------------------------------------------------
 # Environment Detection and Script Sourcing
 # -----------------------------------------------------------------------------
-# Determine if we're running inside Docker, under ShellCheck, or in local environment
+# Load common scripts from same directory
+. "/usr/local/lib/load_scripts.sh"
 
-# Function to detect Docker environment
-in_docker() {
-  # Check for .dockerenv file
-  [ -f /.dockerenv ] && return 0
-  # Check for docker in cgroup
-  grep -q docker /proc/self/cgroup 2>/dev/null && return 0
-  # Not in Docker
-  return 1
-}
-
-# Source scripts based on environment
-# shellcheck disable=SC1090,SC1091
-if in_docker; then
-  # 1) Source strict mode & tracing
-  . "/usr/local/lib/strict_trace.sh"
-  # 2) Source per-arch metadata
-  . "/usr/local/lib/arch_info.sh"
-else
-  # 1) Source strict mode & tracing
-  . "$(dirname "${BASH_SOURCE[0]}")/strict_trace.sh"
-  # 2) Source per-arch metadata
-  . "$(dirname "${BASH_SOURCE[0]}")/arch_info.sh"
-fi
-# Enable shellcheck info codes after the if/else statement
-# shellcheck enable=all
-
-# 3) Pick ARCH and image
+# Pick ARCH and image
 ARCH=${1:-${ARCH:-x64}}
 IMG="/work/template-${ARCH}.img"
 
-# 4) Locate the rootfs tarball
-# Use case statement instead of associative array for better ShellCheck compatibility
-case "$ARCH" in
-  "x64")
-    TAR="/rootfs-cache/amd64/rootfs.tar.xz"
-    ;;
-  "aarch64")
-    TAR="/rootfs-cache/arm64/rootfs.tar.xz"
-    ;;
-  *)
-    echo "Error: Unsupported architecture: $ARCH"
-    exit 1
-    ;;
-esac
+# 4) Locate the rootfs tarball using external resources
+TAR=$("$BB_SCRIPT" rootfs-path "$ARCH")
 
 # Export for consistency with other scripts
 export TAR
@@ -77,10 +40,58 @@ mount -t vfat "$ESP"       "$MOUNT_POINT/boot/efi"
 # ── ensure EFI/BOOT exists on the *mounted* ESP
 mkdir -p "$MOUNT_POINT/boot/efi/EFI/BOOT"
 
-# 7) Unpack rootfs
-tar -xJpf "$TAR" -C "$MOUNT_POINT" --numeric-owner
+# -----------------------------------------------------------------------------
+# Base System Caching Logic
+# -----------------------------------------------------------------------------
+# Cache the complete system after package installation to speed up rebuilds
 
-# 8) Fix DNS in chroot
+# Define cache paths
+BASE_CACHE=$("$BB_SCRIPT" runtime-cache-path "$ARCH")
+CACHE_VERSION_FILE="${BASE_CACHE%.tar.xz}.version"
+
+# Create a simple version string based on packages and rootfs
+PACKAGE_LIST="shim-signed linux-image-generic openssh-server sudo open-iscsi"
+TAR_HASH=$(sha256sum "$TAR" | cut -d' ' -f1 | cut -c1-12)  # Short hash
+CURRENT_VERSION="${PACKAGE_LIST}-${TAR_HASH}"
+
+# Ensure cache directory exists
+CACHE_BASE_DIR=$("$BB_SCRIPT" cache-dir base-systems)
+mkdir -p "$CACHE_BASE_DIR"
+
+# Check if we have a valid cache
+USE_CACHE=false
+if [[ -f "$BASE_CACHE" && -f "$CACHE_VERSION_FILE" ]]; then
+    CACHED_VERSION=$(cat "$CACHE_VERSION_FILE")
+    if [[ "$CACHED_VERSION" == "$CURRENT_VERSION" ]]; then
+        USE_CACHE=true
+        echo "[✓] Using cached base system for $ARCH"
+    else
+        echo "[!] Cache version mismatch for $ARCH"
+        echo "    Cached: $CACHED_VERSION"
+        echo "    Current: $CURRENT_VERSION"
+    fi
+else
+    echo "[!] No cache found for $ARCH, will build from scratch"
+fi
+
+# Choose build path: cache or fresh build
+if [[ "$USE_CACHE" == "true" ]]; then
+    # Fast path: use cached base system
+    echo "[✓] Extracting cached base system..."
+    tar -xJpf "$BASE_CACHE" -C "$MOUNT_POINT" --numeric-owner
+    
+    # Skip to configuration phase (we'll add this marker later)
+    SKIP_PACKAGE_INSTALLATION=true
+else
+    # Slow path: build from scratch
+    echo "[!] Building base system from scratch..."
+    SKIP_PACKAGE_INSTALLATION=false
+    
+    # 7) Unpack clean rootfs
+    tar -xJpf "$TAR" -C "$MOUNT_POINT" --numeric-owner
+fi
+
+# 8) Fix DNS in chroot (needed for both cache and fresh builds)
 mkdir -p "$MOUNT_POINT/etc"
 rm -f    "$MOUNT_POINT/etc/resolv.conf"
 install -Dm644 /etc/resolv.conf "$MOUNT_POINT/etc/resolv.conf"
@@ -97,7 +108,11 @@ mount -t devpts   devpts   "$MOUNT_POINT/dev/pts"
 # Setup cleanup trap for all mounts and loop device
 trap 'umount "$MOUNT_POINT/dev/pts" "$MOUNT_POINT/dev" "$MOUNT_POINT/sys" "$MOUNT_POINT/proc" "$MOUNT_POINT/boot/efi" "$MOUNT_POINT"; rmdir "$MOUNT_POINT"; losetup -d "$LOOPDEV"' EXIT
 
-# 10) Chroot & install kernel + shim + iSCSI support
+# 10) Package installation (only if not using cache)
+if [[ "$SKIP_PACKAGE_INSTALLATION" == "false" ]]; then
+    echo "[!] Installing packages (this will take a few minutes)..."
+    
+    # Chroot & install kernel + shim + iSCSI support
 chroot "$MOUNT_POINT" /bin/bash -euox pipefail <<EOF
 export DEBIAN_FRONTEND=noninteractive
 apt-get update
@@ -179,7 +194,29 @@ echo "FSTYPE=ext4" >> /etc/initramfs-tools/conf.d/fstype
 update-initramfs -u -k all
 EOF
 
-# 11) Write fstab
+    # Create cache after successful package installation
+    echo "[✓] Creating base system cache for future builds..."
+    
+    # Temporarily unmount pseudo-filesystems before caching
+    umount "$MOUNT_POINT/dev/pts" "$MOUNT_POINT/dev" "$MOUNT_POINT/sys" "$MOUNT_POINT/proc"
+    
+    # Create the cache tarball (this may take a minute)
+    tar -cJpf "$BASE_CACHE" -C "$MOUNT_POINT" --numeric-owner .
+    echo "$CURRENT_VERSION" > "$CACHE_VERSION_FILE"
+    
+    # Remount pseudo-filesystems for configuration phase
+    mount -t proc     proc     "$MOUNT_POINT/proc"
+    mount -t sysfs    sysfs    "$MOUNT_POINT/sys"
+    mount -t devtmpfs devtmpfs "$MOUNT_POINT/dev"
+    mkdir -p "$MOUNT_POINT/dev/pts"
+    mount -t devpts   devpts   "$MOUNT_POINT/dev/pts"
+    
+    echo "[✓] Base system cached successfully"
+else
+    echo "[✓] Skipped package installation (using cache)"
+fi
+
+# 11) Write fstab (always needed)
 ROOT_UUID=$(blkid -s UUID -o value "$ROOT")
 EFI_UUID=$(blkid -s UUID -o value "$ESP")
 cat > "$MOUNT_POINT/etc/fstab" <<EOF
