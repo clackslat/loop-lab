@@ -2,6 +2,8 @@
 
 A containerized system for creating iSCSI-capable network boot disk images with UEFI support.
 
+> **🔗 Related**: [Main Project Documentation](../../README.md) | [Docker Environment](../../infra/docker/README.md) | [Configuration Management](../../infra/config/README.md)
+
 ## Overview
 
 This system creates bootable disk images that can be served over iSCSI for network booting. The images contain:
@@ -52,9 +54,11 @@ The system automatically downloads and caches:
 
 ## Configuration
 
-External resource URLs and cache paths are managed via EDN configuration files in `infra/config/src/`:
-- `external_resources.edn` - Resource definitions
+External resource URLs and cache paths are managed via EDN configuration files in [`infra/config/src/`](../../infra/config/README.md):
+- `external_resources.edn` - Resource definitions  
 - `external_resources.bb` - Babashka script for processing
+
+See the [Configuration Management documentation](../../infra/config/README.md) for details on the EDN format and resource definitions.
 
 ## Testing
 

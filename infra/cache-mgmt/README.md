@@ -2,6 +2,8 @@
 
 Infrastructure component for downloading, storing, and managing external build resources.
 
+> **🔗 Related**: [Main Project Documentation](../../README.md) | [Configuration Management](../config/README.md) | [Docker Environment](../docker/README.md)
+
 ## Components
 
 - **`check_and_download_cache.sh`** - Main cache management script with download logic

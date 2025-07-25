@@ -2,6 +2,8 @@
 
 Infrastructure component for Git hooks and repository management tools.
 
+> **🔗 Related**: [Main Project Documentation](../../README.md) | [Docker Environment](../docker/README.md)
+
 ## Components
 
 - **`pre-commit`** - Git pre-commit hook for code quality enforcement

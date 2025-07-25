@@ -2,6 +2,8 @@
 
 Infrastructure component providing the containerized build environment for disk image creation.
 
+> **🔗 Related**: [Main Project Documentation](../../README.md) | [Configuration Management](../config/README.md) | [Network Boot System](../../app/netboot/README.md)
+
 ## Components
 
 - **`Dockerfile`** - Container definition with build tools and runtime environment

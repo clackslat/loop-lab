@@ -2,6 +2,8 @@
 
 Infrastructure component for managing external resource definitions and build configuration.
 
+> **🔗 Related**: [Main Project Documentation](../../README.md) | [Cache Management](../cache-mgmt/README.md) | [Network Boot System](../../app/netboot/README.md)
+
 ## Components
 
 - **`external_resources.edn`** - EDN-format configuration defining external resource URLs and cache paths

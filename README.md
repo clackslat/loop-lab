@@ -2,18 +2,26 @@
 
 A containerized network boot disk image builder with infrastructure/application separation.
 
+## 📚 Documentation Navigation
+
+- **[Project Structure](#project-structure)** - Overview of directory organization
+- **[Quick Start](#quick-start)** - Get up and running quickly  
+- **[Build Targets](#main-build-targets)** - Available Make commands
+- **[Components](#components)** - Detailed component documentation
+- **[Architecture Support](#architecture-support)** - Supported platforms
+
 ## Project Structure
 
 The project follows a clean separation between infrastructure concerns and application logic:
 
 ```
 ├── infra/                    # Infrastructure components
-│   ├── config/src/          # Configuration management (EDN, external resources)
-│   ├── cache-mgmt/src/      # External resource caching system
-│   ├── docker/src/          # Container build environment
-│   └── scm/src/             # Source control management (hooks)
+│   ├── config/src/          # [Configuration management](infra/config/README.md)
+│   ├── cache-mgmt/src/      # [External resource caching](infra/cache-mgmt/README.md)
+│   ├── docker/src/          # [Container build environment](infra/docker/README.md)
+│   └── scm/src/             # [Source control management](infra/scm/README.md)
 ├── app/                     # Application components
-│   └── netboot/             # Network boot disk image creation
+│   └── netboot/             # [Network boot disk images](app/netboot/README.md)
 │       ├── src/assembly/    # Core image assembly scripts
 │       └── test/            # Application tests
 ├── build/                   # Build artifacts and cache
@@ -73,4 +81,11 @@ Currently supported architectures:
 
 ## Components
 
+### Infrastructure Components
+- **[Configuration Management](infra/config/README.md)** - EDN-based external resource configuration
+- **[Cache Management](infra/cache-mgmt/README.md)** - Smart caching system for external resources
+- **[Docker Environment](infra/docker/README.md)** - Containerized build environment
+- **[Source Control](infra/scm/README.md)** - Git hooks and repository management
+
+### Application Components
 - **[Network Boot System](app/netboot/README.md)** - iSCSI-capable network boot disk image creation
