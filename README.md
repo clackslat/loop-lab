@@ -17,17 +17,34 @@ The project follows a clean separation between infrastructure concerns and appli
 ```
 ├── infra/                    # Infrastructure components
 │   ├── config/src/          # [Configuration management](infra/config/README.md)
+│   │   ├── [external_resources.edn](infra/config/src/external_resources.edn)
+│   │   ├── [external_resources.bb](infra/config/src/external_resources.bb)
+│   │   └── [load_scripts.sh](infra/config/src/load_scripts.sh)
 │   ├── cache-mgmt/src/      # [External resource caching](infra/cache-mgmt/README.md)
+│   │   ├── [check_and_download_cache.sh](infra/cache-mgmt/src/check_and_download_cache.sh)
+│   │   ├── [prep_cache.sh](infra/cache-mgmt/src/prep_cache.sh)
+│   │   └── [show_cache_status.sh](infra/cache-mgmt/src/show_cache_status.sh)
 │   ├── docker/src/          # [Container build environment](infra/docker/README.md)
+│   │   ├── [Dockerfile](infra/docker/src/Dockerfile)
+│   │   └── [strict_trace.sh](infra/docker/src/strict_trace.sh)
 │   └── scm/src/             # [Source control management](infra/scm/README.md)
+│       ├── [pre-commit](infra/scm/src/pre-commit)
+│       └── [build_all_arch.sh](infra/scm/src/build_all_arch.sh)
 ├── app/                     # Application components
 │   └── netboot/             # [Network boot disk images](app/netboot/README.md)
 │       ├── src/assembly/    # Core image assembly scripts
+│       │   ├── [build_image.sh](app/netboot/src/assembly/build_image.sh)
+│       │   ├── [prep_esp.sh](app/netboot/src/assembly/prep_esp.sh)
+│       │   └── [import_rootfs.sh](app/netboot/src/assembly/import_rootfs.sh)
 │       └── test/            # Application tests
+│           ├── [test_image.sh](app/netboot/test/test_image.sh)
+│           ├── [boot_test.exp](app/netboot/test/boot_test.exp)
+│           └── [simple_boot_test.sh](app/netboot/test/simple_boot_test.sh)
 ├── build/                   # Build artifacts and cache
 │   ├── cache/              # Downloaded external resources
 │   └── images/             # Generated disk images
-└── docs/                   # Project documentation
+├── docs/                   # Project documentation
+└── [Makefile](Makefile)    # Main build system
 ```
 
 Each functional component follows a tri-directory pattern: `docs/`, `test/`, and `src/`.

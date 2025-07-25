@@ -6,9 +6,9 @@ Infrastructure component for Git hooks and repository management tools.
 
 ## Components
 
-- **`pre-commit`** - Git pre-commit hook for code quality enforcement
-- **`build_all_arch.sh`** - Multi-architecture build automation
-- **`find_shell_scripts.sh`** - Shell script discovery and validation
+- **[`pre-commit`](src/pre-commit)** - Git pre-commit hook for code quality enforcement
+- **[`build_all_arch.sh`](src/build_all_arch.sh)** - Multi-architecture build automation
+- **[`find_shell_scripts.sh`](src/find_shell_scripts.sh)** - Shell script discovery and validation
 
 ## Git Hooks
 
@@ -26,15 +26,15 @@ git config core.hooksPath infra/scm/src
 ## Build Automation
 
 ### Multi-Architecture Builds
-The `build_all_arch.sh` script automates building for all supported architectures:
+The [`build_all_arch.sh`](src/build_all_arch.sh) script automates building for all supported architectures:
 ```bash
-./build_all_arch.sh
+./[build_all_arch.sh](src/build_all_arch.sh)
 ```
 
 ### Script Discovery
-The `find_shell_scripts.sh` utility helps locate and validate shell scripts across the project:
+The [`find_shell_scripts.sh`](src/find_shell_scripts.sh) utility helps locate and validate shell scripts across the project:
 ```bash
-./find_shell_scripts.sh
+./[find_shell_scripts.sh](src/find_shell_scripts.sh)
 ```
 
 ## Integration

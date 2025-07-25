@@ -6,10 +6,10 @@ Infrastructure component for downloading, storing, and managing external build r
 
 ## Components
 
-- **`check_and_download_cache.sh`** - Main cache management script with download logic
-- **`prep_cache.sh`** - Cache preparation for specific architectures
-- **`show_cache_status.sh`** - Display current cache status across architectures
-- **`clean_cache.sh`** - Cache cleanup utilities
+- **[`check_and_download_cache.sh`](src/check_and_download_cache.sh)** - Main cache management script with download logic
+- **[`prep_cache.sh`](src/prep_cache.sh)** - Cache preparation for specific architectures
+- **[`show_cache_status.sh`](src/show_cache_status.sh)** - Display current cache status across architectures
+- **[`clean_cache.sh`](src/clean_cache.sh)** - Cache cleanup utilities
 
 ## Cache Structure
 
@@ -36,11 +36,11 @@ Cache management is automatically handled by the main build system, but can be u
 
 ```bash
 # Prepare cache for specific architecture
-./prep_cache.sh x64
+./[prep_cache.sh](src/prep_cache.sh) x64
 
 # Check cache status
-./show_cache_status.sh
+./[show_cache_status.sh](src/show_cache_status.sh)
 
 # Clean architecture-specific cache
-./clean_cache.sh x64
+./[clean_cache.sh](src/clean_cache.sh) x64
 ```

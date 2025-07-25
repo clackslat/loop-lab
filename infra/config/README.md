@@ -6,9 +6,9 @@ Infrastructure component for managing external resource definitions and build co
 
 ## Components
 
-- **`external_resources.edn`** - EDN-format configuration defining external resource URLs and cache paths
-- **`external_resources.bb`** - Babashka script for processing configuration and resolving architecture-specific resources
-- **`load_scripts.sh`** - Shell utility for loading and executing Babashka scripts
+- **[`external_resources.edn`](src/external_resources.edn)** - EDN-format configuration defining external resource URLs and cache paths
+- **[`external_resources.bb`](src/external_resources.bb)** - Babashka script for processing configuration and resolving architecture-specific resources
+- **[`load_scripts.sh`](src/load_scripts.sh)** - Shell utility for loading and executing Babashka scripts
 
 ## External Resources
 

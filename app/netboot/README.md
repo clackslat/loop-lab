@@ -32,9 +32,9 @@ graph TD
 
 ### Assembly Scripts (`src/assembly/`)
 
-- **`build_image.sh`** - Core disk image creation with GPT partitioning
-- **`prep_esp.sh`** - EFI System Partition preparation and UEFI shell installation
-- **`import_rootfs.sh`** - Ubuntu root filesystem import and configuration
+- **[`build_image.sh`](src/assembly/build_image.sh)** - Core disk image creation with GPT partitioning
+- **[`prep_esp.sh`](src/assembly/prep_esp.sh)** - EFI System Partition preparation and UEFI shell installation
+- **[`import_rootfs.sh`](src/assembly/import_rootfs.sh)** - Ubuntu root filesystem import and configuration
 
 ### External Resources
 
@@ -55,17 +55,17 @@ The system automatically downloads and caches:
 ## Configuration
 
 External resource URLs and cache paths are managed via EDN configuration files in [`infra/config/src/`](../../infra/config/README.md):
-- `external_resources.edn` - Resource definitions  
-- `external_resources.bb` - Babashka script for processing
+- [`external_resources.edn`](../../infra/config/src/external_resources.edn) - Resource definitions  
+- [`external_resources.bb`](../../infra/config/src/external_resources.bb) - Babashka script for processing
 
 See the [Configuration Management documentation](../../infra/config/README.md) for details on the EDN format and resource definitions.
 
 ## Testing
 
-Test scripts in `test/` directory include:
-- **Boot Tests**: `boot_test.exp`, `simple_boot_test.exp`
-- **System Tests**: `test_image.sh`, `test_boot_modes.sh`
-- **Resource Tests**: `test_external_resources.sh`
+Test scripts in [`test/`](test/) directory include:
+- **Boot Tests**: [`boot_test.exp`](test/boot_test.exp), [`simple_boot_test.exp`](test/simple_boot_test.exp)
+- **System Tests**: [`test_image.sh`](test/test_image.sh), [`test_boot_modes.sh`](test/test_boot_modes.sh)
+- **Resource Tests**: [`test_external_resources.sh`](test/test_external_resources.sh)
 
 ## Manual Container Execution
 

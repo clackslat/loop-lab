@@ -6,8 +6,8 @@ Infrastructure component providing the containerized build environment for disk 
 
 ## Components
 
-- **`Dockerfile`** - Container definition with build tools and runtime environment
-- **`strict_trace.sh`** - Enhanced shell debugging and tracing utilities
+- **[`Dockerfile`](src/Dockerfile)** - Container definition with build tools and runtime environment
+- **[`strict_trace.sh`](src/strict_trace.sh)** - Enhanced shell debugging and tracing utilities
 
 ## Container Features
 
