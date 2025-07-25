@@ -14,8 +14,9 @@
 # Get the directory containing the calling script
 SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
 
-# Load strict mode settings only
-. "$SCRIPT_DIR/strict_trace.sh"
+# Load strict mode settings from docker component
+DOCKER_SRC_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")/docker/src"
+. "$DOCKER_SRC_DIR/strict_trace.sh"
 
 # Path to Babashka script for direct usage
 BB_SCRIPT="$SCRIPT_DIR/external_resources.bb"

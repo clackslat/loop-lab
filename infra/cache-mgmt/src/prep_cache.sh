@@ -32,7 +32,8 @@
 # Source required scripts
 # shellcheck disable=SC1090,SC1091
 SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
-. "$SCRIPT_DIR/load_scripts.sh"
+PROJECT_ROOT="$(dirname "$(dirname "$(dirname "$SCRIPT_DIR")")")"
+. "$PROJECT_ROOT/infra/config/src/load_scripts.sh"
 # Enable shellcheck info codes after sourcing
 # shellcheck enable=all
 
@@ -40,8 +41,10 @@ SCRIPT_DIR="$(dirname "${BASH_SOURCE[0]}")"
 # Cache Directory Setup
 # -----------------------------------------------------------------------------
 echo "[CACHE] Setting up cache directories..."
-UEFI_SHELLS_DIR=$("$BB_SCRIPT" cache-dir uefi-shells)
-BASE_SYSTEMS_DIR=$("$BB_SCRIPT" cache-dir base-systems)
+UEFI_SHELL_PATH=$("$BB_SCRIPT" cache-location x64 boot)
+BASE_SYSTEM_PATH=$("$BB_SCRIPT" cache-location x64 os)
+UEFI_SHELLS_DIR=$(dirname "$UEFI_SHELL_PATH")
+BASE_SYSTEMS_DIR=$(dirname "$BASE_SYSTEM_PATH")
 mkdir -p "$UEFI_SHELLS_DIR"
 mkdir -p "$BASE_SYSTEMS_DIR"
 
@@ -54,24 +57,23 @@ echo "[CACHE] Preparing cache for architecture: $ARCH"
 # -----------------------------------------------------------------------------
 echo "[CACHE] Pre-downloading UEFI shell for $ARCH..."
 
-# Get UEFI configuration
-UEFI_SHELL_CONFIG_OUTPUT=$("$BB_SCRIPT" uefi-config "$ARCH")
-if [[ $? -ne 0 ]]; then
+# Get source URL and cache location
+UEFI_SOURCE_URL=$("$BB_SCRIPT" source-url "$ARCH" boot)
+UEFI_CACHE_PATH=$("$BB_SCRIPT" cache-location "$ARCH" boot)
+
+if [[ -z "$UEFI_SOURCE_URL" || -z "$UEFI_CACHE_PATH" ]]; then
     echo "[ERROR] Failed to get UEFI configuration for architecture: $ARCH"
     exit 1
 fi
 
-# Export the UEFI configuration variables
-eval "$UEFI_SHELL_CONFIG_OUTPUT"
-
 # Determine cache filename and path
-CACHED_UEFI_SHELL=$("$BB_SCRIPT" uefi-cache-path "$ARCH")
+CACHED_UEFI_SHELL="$UEFI_CACHE_PATH"
 
 if [[ -f "$CACHED_UEFI_SHELL" ]]; then
     echo "[CACHE] ✓ UEFI shell for $ARCH already cached ($CACHED_UEFI_SHELL)"
 else
-    echo "[CACHE] → Downloading UEFI shell for $ARCH from $UEFI_SHELL_URL"
-    if curl -fsSL "$UEFI_SHELL_URL" -o "$CACHED_UEFI_SHELL"; then
+    echo "[CACHE] → Downloading UEFI shell for $ARCH from $UEFI_SOURCE_URL"
+    if curl -fsSL "$UEFI_SOURCE_URL" -o "$CACHED_UEFI_SHELL"; then
         echo "[CACHE] ✓ UEFI shell for $ARCH cached successfully ($CACHED_UEFI_SHELL)"
     else
         echo "[ERROR] Failed to download UEFI shell for $ARCH"
@@ -85,10 +87,10 @@ fi
 echo "[CACHE] Pre-downloading rootfs tarball for $ARCH..."
 
 # Get Ubuntu URL and rootfs path
-UBUNTU_URL=$("$BB_SCRIPT" ubuntu-url "$ARCH")
-CACHED_ROOTFS=$("$BB_SCRIPT" rootfs-path "$ARCH")
+UBUNTU_URL=$("$BB_SCRIPT" source-url "$ARCH" os)
+CACHED_ROOTFS=$("$BB_SCRIPT" cache-location "$ARCH" os)
 
-if [[ $? -ne 0 ]]; then
+if [[ -z "$UBUNTU_URL" || -z "$CACHED_ROOTFS" ]]; then
     echo "[ERROR] Failed to get Ubuntu configuration for architecture: $ARCH"
     exit 1
 fi
@@ -114,20 +116,19 @@ fi
 # -----------------------------------------------------------------------------
 echo "[CACHE] Validating cached resources..."
 
-# List cached UEFI shells
-echo "[CACHE] Cached UEFI shells:"
-UEFI_SHELLS_DIR=$("$BB_SCRIPT" cache-dir uefi-shells)
-ls -la "$UEFI_SHELLS_DIR/" || echo "[CACHE] No UEFI shells cached yet"
+# Show what we cached
+echo "[CACHE] UEFI shell: $CACHED_UEFI_SHELL"
+if [[ -f "$CACHED_UEFI_SHELL" ]]; then
+    echo "[CACHE] ✓ UEFI shell cached ($(stat -f%z "$CACHED_UEFI_SHELL" 2>/dev/null || stat -c%s "$CACHED_UEFI_SHELL") bytes)"
+else
+    echo "[CACHE] ✗ UEFI shell not cached"
+fi
 
-# List cached rootfs files
-echo "[CACHE] Cached rootfs files:"
-find /rootfs-cache -name "*.tar.xz" -exec ls -la {} \; 2>/dev/null || echo "[CACHE] No rootfs files cached yet"
-
-# Show cache sizes
-echo "[CACHE] Cache directory sizes:"
-CACHE_BASE_DIR=$("$BB_SCRIPT" cache-dir "base-dir")
-du -sh "$CACHE_BASE_DIR"/* 2>/dev/null || echo "[CACHE] Cache directories empty"
-echo "[CACHE] Rootfs cache sizes:"
-du -sh /rootfs-cache/* 2>/dev/null || echo "[CACHE] Rootfs cache empty"
+echo "[CACHE] Rootfs: $CACHED_ROOTFS"
+if [[ -f "$CACHED_ROOTFS" ]]; then
+    echo "[CACHE] ✓ Rootfs cached ($(stat -f%z "$CACHED_ROOTFS" 2>/dev/null || stat -c%s "$CACHED_ROOTFS") bytes)"
+else
+    echo "[CACHE] ✗ Rootfs not cached"
+fi
 
 echo "[CACHE] ✓ Cache preparation completed successfully"
