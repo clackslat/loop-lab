@@ -67,7 +67,7 @@ esac
 # Clean cache files
 for arch in "${ARCHITECTURES[@]}"; do
     for resource_type in "${RESOURCE_TYPES[@]}"; do
-        cache_path=$("$SCRIPT_DIR/external_resources.bb" cache-location "$arch" "$resource_type")
+        cache_path=$("$SCRIPT_DIR/../../config/src/external_resources.bb" cache-location "$arch" "$resource_type")
         if [ -f "$cache_path" ]; then
             rm -f "$cache_path"
             echo "✓ Cleaned $resource_type cache for $arch: $cache_path"

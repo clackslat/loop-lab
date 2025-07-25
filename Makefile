@@ -10,11 +10,11 @@ prep-cache: ## Prepare/download cache for the given architecture (ARCH)
 
 .PHONY: prep-cache-boot
 prep-cache-boot: ## Check and download boot resources (UEFI shell) if missing
-	@$(DOCKER_DIR)/check_and_download_cache.sh $(ARCH) boot
+	@$(CACHE_SCRIPTS_DIR)/check_and_download_cache.sh $(ARCH) boot
 
 .PHONY: prep-cache-os
 prep-cache-os: ## Check and download OS resources (rootfs) if missing
-	@$(DOCKER_DIR)/check_and_download_cache.sh $(ARCH) os
+	@$(CACHE_SCRIPTS_DIR)/check_and_download_cache.sh $(ARCH) os
 # =============================================================================
 # Loop-Lab Makefile
 # =============================================================================
@@ -33,8 +33,13 @@ prep-cache-os: ## Check and download OS resources (rootfs) if missing
 # Default architecture
 ARCH ?= x64
 
+# Infrastructure and application directories
+CONFIG_DIR := infra/config/src
+CACHE_SCRIPTS_DIR := infra/cache-mgmt/src
+DOCKER_DIR := infra/docker/src
+ASSEMBLY_DIR := app/netboot/src/assembly
+
 # Build directories and files
-DOCKER_DIR := src/docker
 BUILD_DIR := build
 CACHE_DIR := $(BUILD_DIR)/cache
 OUTPUT_DIR := $(BUILD_DIR)/images
@@ -47,16 +52,16 @@ FULL_IMAGE_NAME := $(DOCKER_IMAGE):$(DOCKER_TAG)
 # Source files that affect Docker image
 DOCKER_SOURCES := $(DOCKER_DIR)/Dockerfile \
 				  $(DOCKER_DIR)/strict_trace.sh \
-				  $(DOCKER_DIR)/load_scripts.sh \
-				  $(DOCKER_DIR)/external_resources.edn \
-				  $(DOCKER_DIR)/external_resources.bb \
-				  $(DOCKER_DIR)/build_image.sh \
-				  $(DOCKER_DIR)/prep_esp.sh \
-				  $(DOCKER_DIR)/import_rootfs.sh \
-				  $(DOCKER_DIR)/prep_cache.sh \
-				  $(DOCKER_DIR)/check_and_download_cache.sh \
-				  $(DOCKER_DIR)/show_cache_status.sh \
-				  $(DOCKER_DIR)/clean_cache.sh
+				  $(CONFIG_DIR)/load_scripts.sh \
+				  $(CONFIG_DIR)/external_resources.edn \
+				  $(CONFIG_DIR)/external_resources.bb \
+				  $(ASSEMBLY_DIR)/build_image.sh \
+				  $(ASSEMBLY_DIR)/prep_esp.sh \
+				  $(ASSEMBLY_DIR)/import_rootfs.sh \
+				  $(CACHE_SCRIPTS_DIR)/prep_cache.sh \
+				  $(CACHE_SCRIPTS_DIR)/check_and_download_cache.sh \
+				  $(CACHE_SCRIPTS_DIR)/show_cache_status.sh \
+				  $(CACHE_SCRIPTS_DIR)/clean_cache.sh
 
 # Output files
 IMAGE_OUTPUT := $(OUTPUT_DIR)/template-$(ARCH).img
@@ -98,16 +103,16 @@ clean-docker: ## Remove Docker image and force rebuild
 
 
 # Generate Docker build arguments using Babashka, passing ARCH
-DOCKER_BUILD_ARGS := $(shell cd $(DOCKER_DIR) && ./external_resources.bb docker-build-args $(ARCH))
+DOCKER_BUILD_ARGS := $(shell cd $(CONFIG_DIR) && ./external_resources.bb docker-build-args $(ARCH))
 
 # Get image configuration from EDN
-IMG_PATH_FROM_EDN := $(shell cd $(DOCKER_DIR) && ./external_resources.bb image-path $(ARCH))
-IMG_SIZE_FROM_EDN := $(shell cd $(DOCKER_DIR) && ./external_resources.bb image-size $(ARCH) 2>/dev/null || echo "10G")
+IMG_PATH_FROM_EDN := $(shell cd $(CONFIG_DIR) && ./external_resources.bb image-path $(ARCH))
+IMG_SIZE_FROM_EDN := $(shell cd $(CONFIG_DIR) && ./external_resources.bb image-size $(ARCH) 2>/dev/null || echo "10G")
 
 $(DOCKER_BUILT_MARKER): $(DOCKER_SOURCES) prep-cache | setup
 	@echo "Building Docker image..."
 	@echo "Using build args: $(DOCKER_BUILD_ARGS)"
-	@cd $(DOCKER_DIR) && docker build $(DOCKER_BUILD_ARGS) -t $(FULL_IMAGE_NAME) .
+	@docker build $(DOCKER_BUILD_ARGS) -f $(DOCKER_DIR)/Dockerfile -t $(FULL_IMAGE_NAME) .
 	@touch $@
 
 .PHONY: docker-build
@@ -129,23 +134,23 @@ docker-info: ## Show Docker image information
 
 .PHONY: cache-status
 cache-status: ## Show cache status for all architectures
-	@$(DOCKER_DIR)/show_cache_status.sh
+	@$(CACHE_SCRIPTS_DIR)/show_cache_status.sh
 
 .PHONY: cache-clean
 cache-clean: ## Clean cache for current architecture
-	@$(DOCKER_DIR)/clean_cache.sh $(ARCH)
+	@$(CACHE_SCRIPTS_DIR)/clean_cache.sh $(ARCH)
 
 .PHONY: cache-clean-all
 cache-clean-all: ## Clean cache for all architectures
-	@$(DOCKER_DIR)/clean_cache.sh all
+	@$(CACHE_SCRIPTS_DIR)/clean_cache.sh all
 
 .PHONY: cache-clean-boot
 cache-clean-boot: ## Clean only boot (UEFI shell) cache
-	@$(DOCKER_DIR)/clean_cache.sh $(ARCH) boot
+	@$(CACHE_SCRIPTS_DIR)/clean_cache.sh $(ARCH) boot
 
 .PHONY: cache-clean-os
 cache-clean-os: ## Clean only OS (rootfs) cache
-	@$(DOCKER_DIR)/clean_cache.sh $(ARCH) os
+	@$(CACHE_SCRIPTS_DIR)/clean_cache.sh $(ARCH) os
 
 # =============================================================================
 # Image Building

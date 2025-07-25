@@ -74,13 +74,15 @@ RUN curl -fsSL https://raw.githubusercontent.com/babashka/babashka/master/instal
 # - prep_esp.sh: Prepares EFI System Partition
 # - import_rootfs.sh: Imports and configures root filesystem
 # -----------------------------------------------------------------------------
-COPY strict_trace.sh         /usr/local/lib/
-COPY load_scripts.sh         /usr/local/lib/
-COPY external_resources.edn  /usr/local/lib/
-COPY external_resources.bb   /usr/local/lib/
-COPY build_image.sh          /usr/local/bin/
-COPY prep_esp.sh             /usr/local/bin/
-COPY import_rootfs.sh        /usr/local/bin/
+# Infrastructure files
+COPY infra/docker/src/strict_trace.sh          /usr/local/lib/
+COPY infra/config/src/load_scripts.sh          /usr/local/lib/
+COPY infra/config/src/external_resources.edn   /usr/local/lib/
+COPY infra/config/src/external_resources.bb    /usr/local/lib/
+# Application files  
+COPY app/netboot/src/assembly/build_image.sh   /usr/local/bin/
+COPY app/netboot/src/assembly/prep_esp.sh      /usr/local/bin/
+COPY app/netboot/src/assembly/import_rootfs.sh /usr/local/bin/
 
 # Make all scripts executable
 RUN chmod +x /usr/local/bin/*.sh /usr/local/lib/*.sh /usr/local/lib/*.bb

@@ -35,7 +35,7 @@ echo "Cache status:"
 # Check boot resources
 echo "Boot resources (UEFI shells):"
 for arch in "${ARCHITECTURES[@]}"; do
-    cache_path=$("$SCRIPT_DIR/external_resources.bb" cache-location "$arch" boot)
+    cache_path=$("$SCRIPT_DIR/../../config/src/external_resources.bb" cache-location "$arch" boot)
     echo -n "  $arch: "
     if [ -f "$cache_path" ]; then
         size=$(du -h "$cache_path" | cut -f1)
@@ -48,7 +48,7 @@ done
 # Check OS resources
 echo "OS resources (rootfs):"
 for arch in "${ARCHITECTURES[@]}"; do
-    cache_path=$("$SCRIPT_DIR/external_resources.bb" cache-location "$arch" os)
+    cache_path=$("$SCRIPT_DIR/../../config/src/external_resources.bb" cache-location "$arch" os)
     echo -n "  $arch: "
     if [ -f "$cache_path" ]; then
         size=$(du -h "$cache_path" | cut -f1)

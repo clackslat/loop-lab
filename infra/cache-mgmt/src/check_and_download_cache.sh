@@ -37,8 +37,8 @@ RESOURCE_TYPE="$2"
 echo "Checking $RESOURCE_TYPE cache for $ARCH..."
 
 # Get cache path and source URL using Babashka
-cache_path=$("$SCRIPT_DIR/external_resources.bb" cache-location "$ARCH" "$RESOURCE_TYPE")
-source_url=$("$SCRIPT_DIR/external_resources.bb" source-url "$ARCH" "$RESOURCE_TYPE")
+cache_path=$("$SCRIPT_DIR/../../config/src/external_resources.bb" cache-location "$ARCH" "$RESOURCE_TYPE")
+source_url=$("$SCRIPT_DIR/../../config/src/external_resources.bb" source-url "$ARCH" "$RESOURCE_TYPE")
 
 # Check if cache exists
 if [ -f "$cache_path" ]; then
