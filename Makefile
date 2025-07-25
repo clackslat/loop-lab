@@ -53,6 +53,7 @@ DOCKER_SOURCES := $(DOCKER_DIR)/Dockerfile \
 				  $(DOCKER_DIR)/build_image.sh \
 				  $(DOCKER_DIR)/prep_esp.sh \
 				  $(DOCKER_DIR)/import_rootfs.sh \
+				  $(DOCKER_DIR)/prep_cache.sh \
 				  $(DOCKER_DIR)/check_and_download_cache.sh \
 				  $(DOCKER_DIR)/show_cache_status.sh \
 				  $(DOCKER_DIR)/clean_cache.sh

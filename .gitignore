@@ -13,3 +13,5 @@ cache/
 
 # EDK2 variable files
 edk2-vars-*.fd
+.DS_Store
+.DS_Store
